@@ -99,7 +99,14 @@ export function makeId(prefix: string) {
 function hashPassword(password: string) {
   const salt = randomBytes(16);
   const hash = scryptSync(password, salt, 64);
-  return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
+  return `scrypt${salt.toString('hex')}${hash.toString('hex')}`;
+}
+
+function getAdminSeedPassword() {
+  const fromEnv = process.env.ADMIN_SEED_PASSWORD;
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV === 'production') throw new Error('ADMIN_SEED_PASSWORD is required in production');
+  return 'change_me_admin_password';
 }
 
 export const store = {
@@ -120,7 +127,7 @@ const adminId = makeId('user');
 store.users.set(adminId, {
   id: adminId,
   email: 'admin@flupflap.com',
-  password: hashPassword(process.env.ADMIN_SEED_PASSWORD || 'change_me_admin_password'),
+  password: hashPassword(getAdminSeedPassword()),
   role: 'admin',
   createdAt: now()
 });
