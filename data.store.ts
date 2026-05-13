@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 export type Role = 'rider' | 'driver' | 'merchant' | 'admin';
 
 export type User = {
@@ -91,7 +93,7 @@ export type MarketplaceDelivery = {
 const now = () => new Date().toISOString();
 
 export function makeId(prefix: string) {
-  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 }
 
 export const store = {
@@ -112,7 +114,7 @@ const adminId = makeId('user');
 store.users.set(adminId, {
   id: adminId,
   email: 'admin@flupflap.com',
-  password: 'admin123',
+  password: process.env.ADMIN_SEED_PASSWORD || 'change_me_admin_password',
   role: 'admin',
   createdAt: now()
 });
