@@ -8,7 +8,6 @@ httpServer.listen(env.port, () => {
   logger.info('http server started', {
     port: env.port,
     nodeEnv: env.nodeEnv,
-    logLevel: env.logLevel,
     dataStoreMode: env.dataStoreMode
   });
 });

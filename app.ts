@@ -31,7 +31,7 @@ export function createApp() {
 
   app.get('/health', (_, res) => res.json({ ok: true, service: 'flupflap-ride-v7' }));
   app.get('/livez', (_, res) => res.json({ ok: true }));
-  app.get('/readyz', (_, res) => res.json({ ok: true, uptimeSeconds: Number(process.uptime().toFixed(3)) }));
+  app.get('/readyz', (_, res) => res.json({ ok: true, uptimeSeconds: Math.round(process.uptime() * 1000) / 1000 }));
 
   app.use('/api/auth', authRoutes);
   app.use('/api/rides', ridesRoutes);
