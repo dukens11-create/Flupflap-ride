@@ -19,7 +19,6 @@ export async function estimate(body: any, _params?: any, _query?: any) {
 export async function request(body: any, _params?: any, _query?: any) {
   const riderId = body?.actor?.id || body?.riderId || body?.userId;
   if (!riderId) return { module: 'rides', action: 'request', error: 'riderId is required' };
-  if (body?.actor?.role && body.actor.role !== 'rider') return { module: 'rides', action: 'request', error: 'only riders can request rides' };
 
   const estimated = await estimate(body);
   const now = timestamp();

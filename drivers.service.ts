@@ -6,13 +6,17 @@ function getProfile(userId: string) {
 
 export async function apply(body: any, _params?: any, _query?: any) {
   const userId = body?.actor?.id;
-  if (!userId) return { module: 'drivers', action: 'apply', error: 'unauthorized' };
+  if (!userId) return { module: 'drivers', action: 'apply', error: 'actor id is required' };
 
   const existing = getProfile(userId);
   if (existing) {
     existing.lat = body?.lat ?? existing.lat;
     existing.lng = body?.lng ?? existing.lng;
-    if (existing.status === 'rejected') existing.status = 'pending';
+    if (existing.status === 'rejected') {
+      existing.status = 'pending';
+      existing.documents = [];
+      existing.available = false;
+    }
     markStoreDirty();
     return { module: 'drivers', action: 'apply', ok: true, profile: existing };
   }

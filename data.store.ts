@@ -232,7 +232,10 @@ function hydrateStore() {
     for (const user of parsed.users || []) store.users.set(user.id, user);
     for (const [tokenHash, refreshToken] of parsed.refreshTokens || []) {
       if (typeof refreshToken === 'string') {
-        store.refreshTokens.set(tokenHash, { userId: refreshToken, expiresAt: new Date(0).toISOString() });
+        store.refreshTokens.set(tokenHash, {
+          userId: refreshToken,
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString()
+        });
         continue;
       }
       if (refreshToken?.userId && refreshToken?.expiresAt) {
