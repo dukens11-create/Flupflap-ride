@@ -26,11 +26,20 @@ function getPort() {
   return parsed;
 }
 
+function getLogLevel() {
+  const raw = getString('LOG_LEVEL', 'info')?.toLowerCase();
+  if (raw === 'debug' || raw === 'info' || raw === 'warn' || raw === 'error') {
+    return raw;
+  }
+  return 'info';
+}
+
 const dataStoreMode = getString('DATA_STORE_MODE', 'memory') === 'file' ? 'file' : 'memory';
 
 export const env = {
   nodeEnv: getString('NODE_ENV', 'development'),
   port: getPort(),
+  logLevel: getLogLevel(),
   jwtSecret: getRequiredInProduction('JWT_SECRET', 'dev-local-secret'),
   adminSeedPassword: getRequiredInProduction('ADMIN_SEED_PASSWORD', 'change_me_admin_password'),
   dataStoreMode,
