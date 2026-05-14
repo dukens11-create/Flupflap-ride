@@ -1,6 +1,8 @@
+import { timingSafeEqual } from 'crypto';
 import { handleStripeWebhook } from './stripe.webhook';
 import { env } from './env';
 import { makeId, markStoreDirty, pushWalletTx, store, timestamp } from './data.store';
+import { DRIVER_PAYOUT_RATE } from './payments.constants';
 
 export async function create_intent(body: any, _params?: any, _query?: any) {
   const amountCents = Number(body?.amountCents || body?.amount || 0);
@@ -52,7 +54,7 @@ export async function capture(body: any, _params?: any, _query?: any) {
   markStoreDirty();
 
   if (payment.riderId) pushWalletTx(payment.riderId, 'debit', payment.amountCents, `payment:${payment.id}:capture`);
-  if (payment.driverId) pushWalletTx(payment.driverId, 'credit', Math.round(payment.amountCents * 0.8), `payment:${payment.id}:driver_payout`);
+  if (payment.driverId) pushWalletTx(payment.driverId, 'credit', Math.round(payment.amountCents * DRIVER_PAYOUT_RATE), `payment:${payment.id}:driver_payout`);
 
   return { module: 'payments', action: 'capture', ok: true, payment };
 }
@@ -69,7 +71,7 @@ export async function refund(body: any, _params?: any, _query?: any) {
   markStoreDirty();
 
   if (payment.riderId) pushWalletTx(payment.riderId, 'credit', payment.amountCents, `payment:${payment.id}:refund`);
-  if (payment.driverId) pushWalletTx(payment.driverId, 'debit', Math.round(payment.amountCents * 0.8), `payment:${payment.id}:refund_reversal`);
+  if (payment.driverId) pushWalletTx(payment.driverId, 'debit', Math.round(payment.amountCents * DRIVER_PAYOUT_RATE), `payment:${payment.id}:refund_reversal`);
 
   return { module: 'payments', action: 'refund', ok: true, payment };
 }
@@ -81,6 +83,14 @@ function readStripeSignature(headers?: any) {
   return undefined;
 }
 
+function signaturesMatch(expected: string, received?: string) {
+  if (!received) return false;
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const receivedBuffer = Buffer.from(received, 'utf8');
+  if (expectedBuffer.length !== receivedBuffer.length) return false;
+  return timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
 export async function stripe_webhook(body: any, _params?: any, _query?: any, headers?: any) {
   const event = body?.event || body;
   if (!event || typeof event?.type !== 'string') {
@@ -88,8 +98,8 @@ export async function stripe_webhook(body: any, _params?: any, _query?: any, hea
   }
 
   if (env.stripeWebhookSecret) {
-    const signature = readStripeSignature(headers) || body?.signature;
-    if (!signature || signature !== env.stripeWebhookSecret) {
+    const signature = readStripeSignature(headers);
+    if (!signaturesMatch(env.stripeWebhookSecret, signature)) {
       return { module: 'payments', action: 'stripe-webhook', error: 'invalid stripe signature' };
     }
   }

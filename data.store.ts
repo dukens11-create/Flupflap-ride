@@ -294,10 +294,12 @@ export function listUsersByRole(role: Role) {
 export function getWalletBalanceCents(userId: string) {
   const cached = store.walletBalances.get(userId);
   if (cached) return cached.balanceCents;
-  return store.walletTx.reduce((sum, tx) => {
+  const computed = store.walletTx.reduce((sum, tx) => {
     if (tx.userId !== userId) return sum;
     return tx.kind === 'credit' ? sum + tx.amountCents : sum - tx.amountCents;
   }, 0);
+  store.walletBalances.set(userId, { userId, balanceCents: computed, updatedAt: now() });
+  return computed;
 }
 
 export function pushWalletTx(userId: string, kind: 'credit' | 'debit', amountCents: number, reason: string) {

@@ -1,4 +1,5 @@
 import { markStoreDirty, pushWalletTx, store, timestamp } from './data.store';
+import { DRIVER_PAYOUT_RATE } from './payments.constants';
 
 function walletTxExists(userId: string, reason: string) {
   return store.walletTx.some(tx => tx.userId === userId && tx.reason === reason);
@@ -11,7 +12,7 @@ function applyCaptureLedger(payment: any) {
   }
   if (payment.driverId) {
     const payoutReason = `payment:${payment.id}:driver_payout`;
-    if (!walletTxExists(payment.driverId, payoutReason)) pushWalletTx(payment.driverId, 'credit', Math.round(payment.amountCents * 0.8), payoutReason);
+    if (!walletTxExists(payment.driverId, payoutReason)) pushWalletTx(payment.driverId, 'credit', Math.round(payment.amountCents * DRIVER_PAYOUT_RATE), payoutReason);
   }
 }
 
@@ -22,7 +23,7 @@ function applyRefundLedger(payment: any) {
   }
   if (payment.driverId) {
     const reversalReason = `payment:${payment.id}:refund_reversal`;
-    if (!walletTxExists(payment.driverId, reversalReason)) pushWalletTx(payment.driverId, 'debit', Math.round(payment.amountCents * 0.8), reversalReason);
+    if (!walletTxExists(payment.driverId, reversalReason)) pushWalletTx(payment.driverId, 'debit', Math.round(payment.amountCents * DRIVER_PAYOUT_RATE), reversalReason);
   }
 }
 
