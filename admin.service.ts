@@ -9,6 +9,15 @@ export async function approve_driver(body: any, _params?: any, _query?: any) {
   const profile = store.drivers.get(body?.userId);
   if (!profile) return { module: 'admin', action: 'approve-driver', error: 'driver profile not found' };
   profile.status = body?.approved === false ? 'rejected' : 'approved';
+  if (profile.status === 'rejected') {
+    profile.verificationState = 'rejected';
+    profile.availabilityStatus = 'unavailable';
+    profile.available = false;
+  } else {
+    profile.verificationState = 'verified';
+    if (!profile.availabilityStatus || profile.availabilityStatus === 'unavailable') profile.availabilityStatus = 'offline';
+    profile.available = profile.availabilityStatus === 'online';
+  }
   markStoreDirty();
   return { module: 'admin', action: 'approve-driver', ok: true, profile };
 }

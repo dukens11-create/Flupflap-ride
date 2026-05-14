@@ -36,6 +36,8 @@ export type Ride = {
 export type DriverProfile = {
   userId: string;
   status: 'pending' | 'approved' | 'rejected';
+  verificationState: 'documents_pending' | 'kyc_pending' | 'verified' | 'rejected';
+  availabilityStatus: 'offline' | 'online' | 'assigned' | 'unavailable';
   available: boolean;
   lat?: number;
   lng?: number;

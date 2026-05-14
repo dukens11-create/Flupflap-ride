@@ -4,11 +4,90 @@ function getProfile(userId: string) {
   return store.drivers.get(userId);
 }
 
+function syncProfileState(profile: any) {
+  if (profile.status === 'rejected') {
+    profile.verificationState = 'rejected';
+  } else if (profile.status === 'approved') {
+    profile.verificationState = 'verified';
+  } else if ((profile.documents || []).length < 2) {
+    profile.verificationState = 'documents_pending';
+  } else {
+    const kyc = store.kycStatus.get(profile.userId);
+    if (kyc === 'verified') profile.verificationState = 'verified';
+    else if (kyc === 'rejected') profile.verificationState = 'rejected';
+    else profile.verificationState = 'kyc_pending';
+  }
+
+  if (profile.verificationState === 'verified') {
+    profile.status = 'approved';
+    if (!profile.availabilityStatus || profile.availabilityStatus === 'unavailable') profile.availabilityStatus = 'offline';
+  } else if (profile.verificationState === 'rejected') {
+    profile.status = 'rejected';
+    profile.availabilityStatus = 'unavailable';
+  } else {
+    profile.status = 'pending';
+    if (profile.availabilityStatus === 'online' || profile.availabilityStatus === 'assigned') profile.availabilityStatus = 'offline';
+  }
+
+  profile.available = profile.availabilityStatus === 'online';
+}
+
+function setAvailability(profile: any, next: 'offline' | 'online' | 'assigned' | 'unavailable') {
+  if (next === 'online') {
+    if (profile.verificationState !== 'verified') return { error: 'driver is not verified' };
+    if (!Number.isFinite(Number(profile.lat)) || !Number.isFinite(Number(profile.lng))) {
+      return { error: 'driver location is required before going online' };
+    }
+  }
+  profile.availabilityStatus = next;
+  profile.available = next === 'online';
+  return { ok: true };
+}
+
+export function syncDriverVerificationState(userId: string) {
+  const profile = getProfile(userId);
+  if (!profile) return null;
+  syncProfileState(profile);
+  markStoreDirty();
+  return profile;
+}
+
+export function markDriverAssigned(userId: string) {
+  const profile = getProfile(userId);
+  if (!profile) return null;
+  syncProfileState(profile);
+  if (profile.verificationState !== 'verified' || profile.availabilityStatus !== 'online') return null;
+  setAvailability(profile, 'assigned');
+  markStoreDirty();
+  return profile;
+}
+
+export function releaseDriverFromRide(userId: string) {
+  const profile = getProfile(userId);
+  if (!profile) return null;
+  syncProfileState(profile);
+  if (profile.verificationState === 'verified') setAvailability(profile, 'online');
+  markStoreDirty();
+  return profile;
+}
+
+export function isDriverDispatchEligible(profile: any) {
+  return (
+    profile?.status === 'approved' &&
+    profile?.verificationState === 'verified' &&
+    profile?.availabilityStatus === 'online' &&
+    Number.isFinite(Number(profile?.lat)) &&
+    Number.isFinite(Number(profile?.lng))
+  );
+}
+
 export async function apply(body: any, _params?: any, _query?: any) {
   const userId = body?.userId || makeId('driver_user');
   const profile = {
     userId,
     status: 'pending' as const,
+    verificationState: 'documents_pending' as const,
+    availabilityStatus: 'offline' as const,
     available: false,
     lat: body?.lat,
     lng: body?.lng,
@@ -26,7 +105,19 @@ export async function availability(body: any, _params?: any, _query?: any) {
   const userId = body?.userId;
   const profile = getProfile(userId);
   if (!profile) return { module: 'drivers', action: 'availability', error: 'driver not found' };
-  profile.available = Boolean(body?.available);
+  syncProfileState(profile);
+  const rawState = body?.status;
+  const requestedState =
+    rawState === 'offline' || rawState === 'online' || rawState === 'unavailable'
+      ? rawState
+      : body?.available === true
+        ? 'online'
+        : body?.available === false
+          ? 'offline'
+          : null;
+  if (!requestedState) return { module: 'drivers', action: 'availability', error: 'status must be one of offline, online, unavailable' };
+  const result = setAvailability(profile, requestedState);
+  if ('error' in result) return { module: 'drivers', action: 'availability', error: result.error };
   markStoreDirty();
   return { module: 'drivers', action: 'availability', ok: true, profile };
 }
@@ -35,8 +126,11 @@ export async function location(body: any, _params?: any, _query?: any) {
   const userId = body?.userId;
   const profile = getProfile(userId);
   if (!profile) return { module: 'drivers', action: 'location', error: 'driver not found' };
-  profile.lat = Number(body?.lat);
-  profile.lng = Number(body?.lng);
+  const lat = Number(body?.lat);
+  const lng = Number(body?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { module: 'drivers', action: 'location', error: 'lat and lng are required numbers' };
+  profile.lat = lat;
+  profile.lng = lng;
   markStoreDirty();
   return { module: 'drivers', action: 'location', ok: true, profile };
 }
@@ -59,7 +153,7 @@ export async function documents(body: any, _params?: any, _query?: any) {
   if (!profile) return { module: 'drivers', action: 'documents', error: 'driver not found' };
   const docs = Array.isArray(body?.documents) ? body.documents : [];
   profile.documents = [...new Set([...profile.documents, ...docs])];
-  if (profile.documents.length >= 2) profile.status = 'approved';
+  syncProfileState(profile);
   markStoreDirty();
   return { module: 'drivers', action: 'documents', ok: true, profile };
 }

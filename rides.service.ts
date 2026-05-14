@@ -1,6 +1,7 @@
 import { dispatchRide } from './dispatch.engine';
 import { estimateRoute } from './eta.service';
 import { makeId, markStoreDirty, pushWalletTx, store, timestamp } from './data.store';
+import { markDriverAssigned, releaseDriverFromRide } from './drivers.service';
 
 function getRide(id: string) {
   const ride = store.rides.get(id);
@@ -22,7 +23,7 @@ export async function request(body: any, _params?: any, _query?: any) {
 
   const estimated = await estimate(body);
   const now = timestamp();
-  const ride = {
+  const ride: any = {
     id: makeId('ride'),
     riderId,
     pickupLat: body?.pickupLat,
@@ -38,13 +39,26 @@ export async function request(body: any, _params?: any, _query?: any) {
   };
   store.rides.set(ride.id, ride);
   const dispatch = await dispatchRide({ id: ride.id, pickupLat: ride.pickupLat, pickupLng: ride.pickupLng });
+  if (dispatch.selected?.driverId) {
+    const assignedProfile = markDriverAssigned(dispatch.selected.driverId);
+    if (assignedProfile) {
+      ride.driverId = assignedProfile.userId;
+      ride.status = 'accepted';
+      ride.updatedAt = timestamp();
+      markStoreDirty();
+    }
+  }
   return { module: 'rides', action: 'request', ok: true, ride, dispatch };
 }
 
 export async function accept(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
-  if (ride.status !== 'requested') return { module: 'rides', action: 'accept', error: 'ride not requestable' };
-  ride.driverId = body?.driverId;
+  if (ride.status !== 'requested' && ride.status !== 'accepted') return { module: 'rides', action: 'accept', error: 'ride not requestable' };
+  const driverId = body?.driverId;
+  if (!driverId) return { module: 'rides', action: 'accept', error: 'driverId is required' };
+  if (ride.status === 'accepted' && ride.driverId === driverId) return { module: 'rides', action: 'accept', ok: true, ride };
+  if (!markDriverAssigned(driverId)) return { module: 'rides', action: 'accept', error: 'driver is not dispatch eligible' };
+  ride.driverId = driverId;
   ride.status = 'accepted';
   ride.updatedAt = timestamp();
   markStoreDirty();
@@ -67,6 +81,7 @@ export async function complete(body: any, _params?: any, _query?: any) {
   ride.status = 'completed';
   ride.updatedAt = timestamp();
   markStoreDirty();
+  if (ride.driverId) releaseDriverFromRide(ride.driverId);
 
   const amountCents = Math.round(ride.fareEstimate * 100);
   if (ride.riderId) pushWalletTx(ride.riderId, 'debit', amountCents, `ride:${ride.id}:fare`);
@@ -81,6 +96,7 @@ export async function cancel(body: any, _params?: any, _query?: any) {
   ride.status = 'canceled';
   ride.updatedAt = timestamp();
   markStoreDirty();
+  if (ride.driverId) releaseDriverFromRide(ride.driverId);
   return { module: 'rides', action: 'cancel', ok: true, ride };
 }
 
