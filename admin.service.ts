@@ -1,4 +1,4 @@
-import { appendAuditLog, listUsersByRole, markStoreDirty, store } from './data.store';
+import { appendAuditLog, listUsersByRole, markStoreDirty, store, timestamp } from './data.store';
 
 export async function drivers_pending(_body: any, _params?: any, _query?: any) {
   const pending = Array.from(store.drivers.values()).filter(d => d.status === 'pending');
@@ -85,7 +85,7 @@ export async function update_ticket(body: any, _params?: any, _query?: any) {
   const allowedStatuses = ['open', 'in_review', 'closed'] as const;
   if (body?.status && allowedStatuses.includes(body.status)) {
     ticket.status = body.status;
-    ticket.updatedAt = new Date().toISOString();
+    ticket.updatedAt = timestamp();
     if (body?.resolution) ticket.resolution = body.resolution;
   }
   markStoreDirty();
