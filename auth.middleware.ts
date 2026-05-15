@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from './env';
+import { store } from './data.store';
 
 export function requireAuth(req: any, res: any, next: any) {
   const header = req.headers.authorization;
@@ -15,7 +16,12 @@ export function requireAuth(req: any, res: any, next: any) {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    req.user = { id: payload.sub, role: payload.role, email: payload.email, phone: payload.phone };
+    const user = store.users.get(payload.sub);
+    if (!user) return res.status(401).json({ error: 'Invalid token' });
+    if (user.deletedAt) return res.status(403).json({ error: 'Account unavailable' });
+    if (user.suspended) return res.status(403).json({ error: 'Account suspended' });
+
+    req.user = { id: user.id, role: user.role, email: user.email, phone: user.phone };
     next();
   } catch {
     res.status(401).json({ error: 'Invalid token' });

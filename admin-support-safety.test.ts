@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { createApp } from './app';
+import { makeId, store, timestamp, type Role } from './data.store';
 
 async function withServer(run: (baseUrl: string) => Promise<void>) {
   const { httpServer } = createApp();
@@ -38,6 +39,27 @@ async function loginAdmin(baseUrl: string) {
   });
   const body = await res.json() as any;
   return body.accessToken as string;
+}
+
+async function createPrivilegedUserAndLogin(baseUrl: string, role: Extract<Role, 'support' | 'compliance'>) {
+  const email = `${role}-${randomUUID()}@example.com`;
+  const userId = makeId('user');
+  store.users.set(userId, {
+    id: userId,
+    email,
+    password: 'password123',
+    role,
+    createdAt: timestamp()
+  });
+  const res = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password: 'password123' })
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json() as any;
+  assert.equal(body.ok, true);
+  return { userId, token: body.accessToken as string };
 }
 
 // ─── Admin tests ─────────────────────────────────────────────────────────────
@@ -167,6 +189,93 @@ test('GET /api/admin/audit-log returns audit entries', async () => {
   });
 });
 
+test('POST /api/admin/review-governance-request lets compliance complete account deletion and blocks further access', async () => {
+  await withServer(async baseUrl => {
+    const { token: complianceToken } = await createPrivilegedUserAndLogin(baseUrl, 'compliance');
+    const { userId, token, refreshToken } = await (async () => {
+      const email = `rider-${randomUUID()}@example.com`;
+      const res = await fetch(`${baseUrl}/api/auth/signup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password: 'password123', role: 'rider' })
+      });
+      const body = await res.json() as any;
+      return { userId: body.user.id as string, token: body.accessToken as string, refreshToken: body.refreshToken as string };
+    })();
+
+    const createTicketRes = await fetch(`${baseUrl}/api/support/create-ticket`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ userId, type: 'account_deletion', message: 'Please delete my account data' })
+    });
+    const createTicketBody = await createTicketRes.json() as any;
+    assert.equal(createTicketBody.ok, true);
+    assert.ok(createTicketBody.governanceRequest?.id);
+
+    const reviewRes = await fetch(`${baseUrl}/api/admin/review-governance-request`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${complianceToken}` },
+      body: JSON.stringify({ requestId: createTicketBody.governanceRequest.id, approve: true, notes: 'verified requester' })
+    });
+    assert.equal(reviewRes.status, 200);
+    const reviewBody = await reviewRes.json() as any;
+    assert.equal(reviewBody.ok, true);
+    assert.equal(reviewBody.request.status, 'completed');
+    assert.ok(reviewBody.user.deletedAt);
+    assert.equal(reviewBody.revokedTokens > 0, true);
+
+    const postDeletionRes = await fetch(`${baseUrl}/api/support/list-tickets`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({})
+    });
+    assert.equal(postDeletionRes.status, 403);
+    const postDeletionBody = await postDeletionRes.json() as any;
+    assert.equal(postDeletionBody.error, 'Account unavailable');
+
+    const refreshRes = await fetch(`${baseUrl}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+    const refreshBody = await refreshRes.json() as any;
+    assert.equal(refreshBody.error, 'invalid refresh token');
+  });
+});
+
+test('POST /api/admin/retention-sweep removes expired sessions and aged closed tickets', async () => {
+  await withServer(async baseUrl => {
+    const { token: complianceToken } = await createPrivilegedUserAndLogin(baseUrl, 'compliance');
+    const { userId } = await signupAndLogin(baseUrl, 'rider');
+    const expiredTokenHash = `expired_${randomUUID()}`;
+    store.refreshTokens.set(expiredTokenHash, { userId, expiresAt: '2000-01-01T00:00:00.000Z' });
+    const oldTicketId = makeId('ticket');
+    store.tickets.set(oldTicketId, {
+      id: oldTicketId,
+      userId,
+      type: 'general',
+      message: 'stale ticket',
+      status: 'closed',
+      replies: [],
+      createdAt: '2000-01-01T00:00:00.000Z',
+      updatedAt: '2000-01-01T00:00:00.000Z'
+    });
+
+    const res = await fetch(`${baseUrl}/api/admin/retention-sweep`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${complianceToken}` },
+      body: JSON.stringify({})
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json() as any;
+    assert.equal(body.ok, true);
+    assert.equal(body.summary.expiredRefreshTokensRevoked >= 1, true);
+    assert.equal(body.summary.closedTicketsDeleted >= 1, true);
+    assert.equal(store.refreshTokens.has(expiredTokenHash), false);
+    assert.equal(store.tickets.has(oldTicketId), false);
+  });
+});
+
 test('POST /api/admin/update-ticket updates a support ticket status', async () => {
   await withServer(async baseUrl => {
     const adminToken = await loginAdmin(baseUrl);
@@ -247,6 +356,29 @@ test('POST /api/support/get-ticket returns error for unknown ticket', async () =
     });
     const body = await res.json() as any;
     assert.equal(body.error, 'ticket not found');
+  });
+});
+
+test('POST /api/support/get-ticket blocks cross-account access to another user ticket', async () => {
+  await withServer(async baseUrl => {
+    const owner = await signupAndLogin(baseUrl, 'rider');
+    const otherRider = await signupAndLogin(baseUrl, 'rider');
+
+    const createRes = await fetch(`${baseUrl}/api/support/create-ticket`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ userId: owner.userId, type: 'general', message: 'Owner ticket' })
+    });
+    const { ticket } = await createRes.json() as any;
+
+    const getRes = await fetch(`${baseUrl}/api/support/get-ticket`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${otherRider.token}` },
+      body: JSON.stringify({ ticketId: ticket.id })
+    });
+    assert.equal(getRes.status, 200);
+    const getBody = await getRes.json() as any;
+    assert.equal(getBody.error, 'forbidden');
   });
 });
 
@@ -361,6 +493,51 @@ test('POST /api/support/list-tickets filters by status', async () => {
     });
     const listBody = await listRes.json() as any;
     assert.ok(listBody.tickets.every((t: any) => t.status === 'open'));
+  });
+});
+
+test('POST /api/support/refund-review requires privileged role and repeated billing tickets raise a fraud signal', async () => {
+  await withServer(async baseUrl => {
+    const adminToken = await loginAdmin(baseUrl);
+    const { token: supportToken } = await createPrivilegedUserAndLogin(baseUrl, 'support');
+    const { userId, token } = await signupAndLogin(baseUrl, 'rider');
+
+    let latestTicketId = '';
+    for (let index = 0; index < 3; index += 1) {
+      const createRes = await fetch(`${baseUrl}/api/support/create-ticket`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId, type: 'billing', message: `Refund request ${index}` })
+      });
+      const createBody = await createRes.json() as any;
+      latestTicketId = createBody.ticket.id;
+    }
+
+    const riderReviewRes = await fetch(`${baseUrl}/api/support/refund-review`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ticketId: latestTicketId, approved: true })
+    });
+    const riderReviewBody = await riderReviewRes.json() as any;
+    assert.equal(riderReviewBody.error, 'forbidden');
+
+    const supportReviewRes = await fetch(`${baseUrl}/api/support/refund-review`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${supportToken}` },
+      body: JSON.stringify({ ticketId: latestTicketId, approved: true })
+    });
+    const supportReviewBody = await supportReviewRes.json() as any;
+    assert.equal(supportReviewBody.ok, true);
+    assert.equal(supportReviewBody.ticket.status, 'closed');
+
+    const alertsRes = await fetch(`${baseUrl}/api/admin/risk-alerts`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({})
+    });
+    const alertsBody = await alertsRes.json() as any;
+    assert.equal(alertsBody.ok, true);
+    assert.ok(alertsBody.alerts.fraudSignals.some((signal: any) => signal.kind === 'repeated_refund_requests' && signal.userId === userId));
   });
 });
 

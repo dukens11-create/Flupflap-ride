@@ -10,11 +10,15 @@ function getString(name: string, fallback?: string) {
 
 function getRequiredInProduction(name: string, fallback: string) {
   const value = getString(name);
-  if (value) return value;
   if (process.env.NODE_ENV === 'production') {
-    throw new Error(`${name} is required in production`);
+    if (!value) {
+      throw new Error(`${name} is required in production`);
+    }
+    if (value === fallback) {
+      throw new Error(`${name} must not use the development default in production`);
+    }
   }
-  return fallback;
+  return value || fallback;
 }
 
 function getPort() {
@@ -22,6 +26,15 @@ function getPort() {
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error('PORT must be a positive number');
+  }
+  return parsed;
+}
+
+function getPositiveInteger(name: string, fallback: number) {
+  const raw = getString(name, String(fallback));
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer`);
   }
   return parsed;
 }
@@ -35,5 +48,9 @@ export const env = {
   adminSeedPassword: getRequiredInProduction('ADMIN_SEED_PASSWORD', 'change_me_admin_password'),
   stripeWebhookSecret: getString('STRIPE_WEBHOOK_SECRET'),
   dataStoreMode,
-  dataStoreFile: getString('DATA_STORE_FILE', '.data/store.json')
+  dataStoreFile: getString('DATA_STORE_FILE', '.data/store.json'),
+  supportTicketRetentionDays: getPositiveInteger('SUPPORT_TICKET_RETENTION_DAYS', 365),
+  fraudSignalRetentionDays: getPositiveInteger('FRAUD_SIGNAL_RETENTION_DAYS', 365),
+  governanceRequestRetentionDays: getPositiveInteger('GOVERNANCE_REQUEST_RETENTION_DAYS', 730),
+  backupExportDir: getString('BACKUP_EXPORT_DIR', '.data/backups')
 };

@@ -10,3 +10,7 @@ export async function list_users(req:any,res:any){res.json(await service.list_us
 export async function suspend_user(req:any,res:any){res.json(await service.suspend_user({...req.body, __actor: req.user}, req.params, req.query));}
 export async function update_ticket(req:any,res:any){res.json(await service.update_ticket({...req.body, __actor: req.user}, req.params, req.query));}
 export async function audit_log(req:any,res:any){res.json(await service.audit_log(req.body, req.params, req.query));}
+export async function governance_requests(req:any,res:any){res.json(await service.governance_requests(req.body, req.params, req.query));}
+export async function review_governance_request(req:any,res:any){res.json(await service.review_governance_request({...req.body, __actor: req.user}, req.params, req.query));}
+export async function retention_sweep(req:any,res:any){res.json(await service.retention_sweep({...req.body, __actor: req.user}, req.params, req.query));}
+export async function backup_plan(req:any,res:any){res.json(await service.backup_plan(req.body, req.params, req.query));}

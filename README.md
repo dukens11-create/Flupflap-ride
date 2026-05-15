@@ -39,8 +39,14 @@ Optional with safe defaults:
 - `LOG_LEVEL` (default `info`; supported: `debug|info|warn|error`)
 - `DATA_STORE_MODE` (default `memory`; use `file` for lightweight persistence)
 - `DATA_STORE_FILE` (default `.data/store.json`)
+- `SUPPORT_TICKET_RETENTION_DAYS` (default `365`)
+- `FRAUD_SIGNAL_RETENTION_DAYS` (default `365`)
+- `GOVERNANCE_REQUEST_RETENTION_DAYS` (default `730`)
+- `BACKUP_EXPORT_DIR` (default `.data/backups`)
 
 Use `.env.example` as the baseline and override values per environment.
+
+Production note: `JWT_SECRET` and `ADMIN_SEED_PASSWORD` must be supplied from a secret manager or deployment environment and may not use the development defaults.
 
 ## Containerization
 
@@ -66,6 +72,31 @@ A GitHub Actions workflow is available at `.github/workflows/ci.yml` and runs:
   - `DATA_STORE_MODE=file` for lightweight persisted JSON state
 - Core route tests in `core.routes.test.ts` cover `/health`, auth token lifecycle, and ride/driver core flow
 - Operational probes include `/health`, `/livez`, and `/readyz`
+
+## Phase 8 compliance and enterprise readiness foundations
+
+Implemented:
+- Actor-bound support access so riders can only view or mutate their own tickets, while sensitive ticket review remains limited to privileged roles.
+- Governance request foundations for privacy-related ticket types (`account_deletion`, `data_export`) with admin/compliance review endpoints and audit logging.
+- Account anonymization for approved deletion requests, including refresh-token revocation and auth checks that block suspended/deleted accounts.
+- Basic fraud signaling for repeated refund-style support requests and admin risk views that now include both safety incidents and fraud signals.
+- Retention sweep foundations for expired refresh tokens, aged closed tickets, and completed governance/fraud records.
+- Backup/recovery planning hooks via runtime configuration and an admin/compliance backup-plan endpoint.
+
+Assumptions:
+- Privacy requests are initiated through the existing support workflow rather than a new dedicated portal.
+- `support` and `compliance` are provisioned operational roles, not self-service signup roles.
+- File-backed persistence remains the realistic backup target for the current repository stage.
+
+Out of scope:
+- Formal GDPR/CCPA certification workflows, legal review automation, or real data-export packaging.
+- Centralized KMS/secret-manager integrations, immutable audit storage, or multi-region disaster recovery automation.
+- Real fraud-scoring models; this phase only adds review hooks and suspicious-activity signals.
+
+Recommended later follow-ups:
+- Add dedicated provisioning flows for support/compliance users and stronger session invalidation/versioning.
+- Move governance requests, audit logs, and backups to durable external storage with encryption and restore drills.
+- Expand fraud rules beyond support-ticket patterns into payment, ride, and device/network telemetry.
 
 ## Backend core completion scope (current PR)
 

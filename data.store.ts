@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import { env } from './env';
 
-export type Role = 'rider' | 'driver' | 'merchant' | 'admin';
+export type Role = 'rider' | 'driver' | 'merchant' | 'admin' | 'support' | 'compliance';
 
 export type User = {
   id: string;
@@ -11,6 +11,8 @@ export type User = {
   phone?: string;
   password: string;
   role: Role;
+  suspended?: boolean;
+  deletedAt?: string;
   createdAt: string;
 };
 
@@ -129,6 +131,35 @@ export type AuditLog = {
   createdAt: string;
 };
 
+export type GovernanceRequest = {
+  id: string;
+  userId: string;
+  type: 'account_deletion' | 'data_export';
+  status: 'requested' | 'under_review' | 'approved' | 'rejected' | 'completed';
+  policyTag: string;
+  requestedBy: string;
+  ticketId?: string;
+  notes?: string;
+  requestedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  completedAt?: string;
+};
+
+export type FraudSignal = {
+  id: string;
+  kind: string;
+  severity: 'low' | 'medium' | 'high';
+  status: 'open' | 'reviewed' | 'dismissed';
+  userId?: string;
+  rideId?: string;
+  ticketId?: string;
+  details?: Record<string, unknown>;
+  createdAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+};
+
 export type MerchantProduct = {
   id: string;
   merchantId: string;
@@ -172,6 +203,8 @@ type PersistedStore = {
   merchantProducts: MerchantProduct[];
   marketplaceDeliveries: MarketplaceDelivery[];
   auditLogs: AuditLog[];
+  governanceRequests: GovernanceRequest[];
+  fraudSignals: FraudSignal[];
 };
 
 let isHydrating = false;
@@ -247,7 +280,9 @@ export const store = {
   safetyIncidents: createPersistentArray<SafetyIncident>(),
   merchantProducts: new PersistentMap<string, MerchantProduct>(),
   marketplaceDeliveries: new PersistentMap<string, MarketplaceDelivery>(),
-  auditLogs: createPersistentArray<AuditLog>()
+  auditLogs: createPersistentArray<AuditLog>(),
+  governanceRequests: createPersistentArray<GovernanceRequest>(),
+  fraudSignals: createPersistentArray<FraudSignal>()
 };
 
 function toSerializableStore(): PersistedStore {
@@ -264,7 +299,9 @@ function toSerializableStore(): PersistedStore {
     safetyIncidents: [...store.safetyIncidents],
     merchantProducts: Array.from(store.merchantProducts.values()),
     marketplaceDeliveries: Array.from(store.marketplaceDeliveries.values()),
-    auditLogs: [...store.auditLogs]
+    auditLogs: [...store.auditLogs],
+    governanceRequests: [...store.governanceRequests],
+    fraudSignals: [...store.fraudSignals]
   };
 }
 
@@ -312,6 +349,8 @@ function hydrateStore() {
     for (const product of parsed.merchantProducts || []) store.merchantProducts.set(product.id, product);
     for (const delivery of parsed.marketplaceDeliveries || []) store.marketplaceDeliveries.set(delivery.id, delivery);
     for (const log of parsed.auditLogs || []) store.auditLogs.push(log);
+    for (const request of parsed.governanceRequests || []) store.governanceRequests.push(request);
+    for (const signal of parsed.fraudSignals || []) store.fraudSignals.push(signal);
   } finally {
     isHydrating = false;
   }
@@ -378,6 +417,89 @@ export function appendAuditLog(
   };
   store.auditLogs.push(entry);
   return entry;
+}
+
+export function isPrivilegedOperationsRole(role?: string) {
+  return role === 'admin' || role === 'support' || role === 'compliance';
+}
+
+export function isComplianceRole(role?: string) {
+  return role === 'admin' || role === 'compliance';
+}
+
+export function createGovernanceRequest(input: {
+  userId: string;
+  type: 'account_deletion' | 'data_export';
+  requestedBy: string;
+  ticketId?: string;
+  notes?: string;
+  policyTag?: string;
+}) {
+  const request: GovernanceRequest = {
+    id: makeId('gov'),
+    userId: input.userId,
+    type: input.type,
+    status: 'requested',
+    policyTag: input.policyTag || 'privacy_v1',
+    requestedBy: input.requestedBy,
+    ticketId: input.ticketId,
+    notes: input.notes,
+    requestedAt: now()
+  };
+  store.governanceRequests.push(request);
+  return request;
+}
+
+export function openFraudSignal(input: {
+  kind: string;
+  severity: 'low' | 'medium' | 'high';
+  userId?: string;
+  rideId?: string;
+  ticketId?: string;
+  details?: Record<string, unknown>;
+}) {
+  const existing = store.fraudSignals.find(signal =>
+    signal.status === 'open'
+    && signal.kind === input.kind
+    && signal.userId === input.userId
+    && signal.ticketId === input.ticketId
+  );
+  if (existing) return existing;
+  const signal: FraudSignal = {
+    id: makeId('fraud'),
+    kind: input.kind,
+    severity: input.severity,
+    status: 'open',
+    userId: input.userId,
+    rideId: input.rideId,
+    ticketId: input.ticketId,
+    details: input.details,
+    createdAt: now()
+  };
+  store.fraudSignals.push(signal);
+  return signal;
+}
+
+export function revokeRefreshTokensForUser(userId: string) {
+  let revoked = 0;
+  for (const [tokenHash, session] of Array.from(store.refreshTokens.entries())) {
+    if (session.userId !== userId) continue;
+    if (store.refreshTokens.delete(tokenHash)) revoked += 1;
+  }
+  return revoked;
+}
+
+export function anonymizeUser(userId: string) {
+  const user = store.users.get(userId);
+  if (!user) return undefined;
+  user.email = user.email ? `deleted+${user.id}@redacted.local` : undefined;
+  user.phone = undefined;
+  user.password = hashPassword(randomBytes(24).toString('hex'));
+  user.suspended = true;
+  user.deletedAt = now();
+  const revokedTokens = revokeRefreshTokensForUser(userId);
+  markStoreDirty();
+  return { user, revokedTokens };
 }
 
 export function pushWalletTx(userId: string, kind: 'credit' | 'debit', amountCents: number, reason: string) {

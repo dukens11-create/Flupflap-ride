@@ -48,6 +48,12 @@ function sanitizeUser(user: any) {
   return safe;
 }
 
+function getUserAvailabilityError(user: any) {
+  if (user?.deletedAt) return 'account unavailable';
+  if (user?.suspended) return 'account suspended';
+  return undefined;
+}
+
 function normalizeRole(role: any): Role {
   return role === 'driver' || role === 'merchant' ? role : 'rider';
 }
@@ -83,6 +89,8 @@ export async function login(body: any, _params?: any, _query?: any) {
   if (!user || !verifyPassword(password || '', user.password)) {
     return { module: 'auth', action: 'login', error: 'invalid credentials' };
   }
+  const availabilityError = getUserAvailabilityError(user);
+  if (availabilityError) return { module: 'auth', action: 'login', error: availabilityError };
 
   const accessToken = signAccessToken(user);
   const refreshToken = issueRefreshToken(user.id);
@@ -104,6 +112,11 @@ export async function refresh(body: any, _params?: any, _query?: any) {
 
   const user = store.users.get(session.userId);
   if (!user) return { module: 'auth', action: 'refresh', error: 'user not found' };
+  const availabilityError = getUserAvailabilityError(user);
+  if (availabilityError) {
+    store.refreshTokens.delete(tokenHash);
+    return { module: 'auth', action: 'refresh', error: availabilityError };
+  }
 
   store.refreshTokens.delete(tokenHash);
   const accessToken = signAccessToken(user);
