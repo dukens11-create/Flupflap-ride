@@ -5,8 +5,12 @@ import { markDriverAssigned, releaseDriverFromRide } from './drivers.service';
 
 function getRide(id: string) {
   const ride = store.rides.get(id);
-  if (!ride) throw new Error('ride not found');
+  if (!ride) return null;
   return ride;
+}
+
+function canAccessRide(actor: any, ride: Ride) {
+  return actor?.role === 'admin' || ride.riderId === actor?.id || ride.driverId === actor?.id;
 }
 
 export async function estimate(body: any, _params?: any, _query?: any) {
@@ -53,6 +57,7 @@ export async function request(body: any, _params?: any, _query?: any) {
 
 export async function accept(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'accept', error: 'ride not found' };
   if (ride.status !== 'requested' && ride.status !== 'accepted') {
     return { module: 'rides', action: 'accept', error: `ride cannot be accepted: current status is ${ride.status}` };
   }
@@ -73,6 +78,7 @@ export async function accept(body: any, _params?: any, _query?: any) {
 
 export async function start(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'start', error: 'ride not found' };
   const driverId = body?.actor?.id || body?.driverId;
   if (!driverId || ride.driverId !== driverId) return { module: 'rides', action: 'start', error: 'only assigned driver can start ride' };
   if (ride.status !== 'accepted') return { module: 'rides', action: 'start', error: 'ride not accepted' };
@@ -84,6 +90,7 @@ export async function start(body: any, _params?: any, _query?: any) {
 
 export async function complete(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'complete', error: 'ride not found' };
   const driverId = body?.actor?.id || body?.driverId;
   if (!driverId || ride.driverId !== driverId) return { module: 'rides', action: 'complete', error: 'only assigned driver can complete ride' };
   if (ride.status !== 'started') return { module: 'rides', action: 'complete', error: 'ride not started' };
@@ -102,6 +109,7 @@ export async function complete(body: any, _params?: any, _query?: any) {
 
 export async function cancel(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'cancel', error: 'ride not found' };
   const riderId = body?.actor?.id || body?.riderId || body?.userId;
   if (!riderId || ride.riderId !== riderId) return { module: 'rides', action: 'cancel', error: 'only rider can cancel ride' };
   if (ride.status === 'completed') return { module: 'rides', action: 'cancel', error: 'cannot cancel completed ride' };
@@ -115,6 +123,7 @@ export async function cancel(body: any, _params?: any, _query?: any) {
 
 export async function rate(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'rate', error: 'ride not found' };
   const riderId = body?.actor?.id || body?.riderId || body?.userId;
   if (!riderId || ride.riderId !== riderId) return { module: 'rides', action: 'rate', error: 'only rider can rate ride' };
   if (ride.status !== 'completed') return { module: 'rides', action: 'rate', error: 'only completed rides can be rated' };
@@ -124,4 +133,23 @@ export async function rate(body: any, _params?: any, _query?: any) {
   ride.updatedAt = timestamp();
   markStoreDirty();
   return { module: 'rides', action: 'rate', ok: true, rideId: ride.id, rating };
+}
+
+export async function history(body: any, _params?: any, _query?: any) {
+  const actor = body?.actor;
+  const rides = Array.from(store.rides.values())
+    .filter(ride => {
+      if (actor?.role === 'admin') return true;
+      if (actor?.role === 'driver') return ride.driverId === actor.id;
+      return ride.riderId === actor?.id;
+    })
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  return { module: 'rides', action: 'history', ok: true, rides };
+}
+
+export async function detail(body: any, params?: any, _query?: any) {
+  const ride = getRide(params?.rideId || body?.rideId);
+  if (!ride) return { module: 'rides', action: 'detail', error: 'ride not found' };
+  if (!canAccessRide(body?.actor, ride)) return { module: 'rides', action: 'detail', error: 'forbidden' };
+  return { module: 'rides', action: 'detail', ok: true, ride };
 }

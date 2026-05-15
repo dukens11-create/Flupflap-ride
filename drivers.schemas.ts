@@ -6,8 +6,11 @@ export const applySchema = z.object({
 }).passthrough();
 
 export const availabilitySchema = z.object({
-  available: z.boolean()
-}).passthrough();
+  available: z.boolean().optional(),
+  status: z.enum(['offline', 'online', 'unavailable']).optional()
+}).passthrough().refine(body => typeof body.available === 'boolean' || typeof body.status === 'string', {
+  message: 'available or status is required'
+});
 
 export const locationSchema = z.object({
   lat: z.number(),
