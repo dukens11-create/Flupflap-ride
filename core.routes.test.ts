@@ -167,10 +167,10 @@ test('ride and driver core flow enforces auth boundaries and status transitions'
     assert.equal(riderDetailBody.ok, true);
     assert.equal(riderDetailBody.ride.id, rideId);
 
-    const stranger = await signup(baseUrl, 'rider');
-    const strangerDetailResponse = await getJson(baseUrl, `/api/rides/${rideId}`, stranger.accessToken);
-    const strangerDetailBody = await strangerDetailResponse.json();
-    assert.equal(strangerDetailBody.error, 'forbidden');
+    const unrelatedRider = await signup(baseUrl, 'rider');
+    const unrelatedRiderDetailResponse = await getJson(baseUrl, `/api/rides/${rideId}`, unrelatedRider.accessToken);
+    const unrelatedRiderDetailBody = await unrelatedRiderDetailResponse.json();
+    assert.equal(unrelatedRiderDetailBody.error, 'forbidden');
 
     const riderAcceptAttempt = await postJson(baseUrl, '/api/rides/accept', { rideId }, rider.accessToken);
     assert.equal(riderAcceptAttempt.status, 403);

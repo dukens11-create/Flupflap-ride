@@ -9,7 +9,7 @@ export const availabilitySchema = z.object({
   available: z.boolean().optional(),
   status: z.enum(['offline', 'online', 'unavailable']).optional()
 }).passthrough().refine(body => typeof body.available === 'boolean' || typeof body.status === 'string', {
-  message: 'available or status is required'
+  message: 'either available (boolean) or status (string) must be provided'
 });
 
 export const locationSchema = z.object({

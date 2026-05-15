@@ -10,7 +10,8 @@ function getRide(id: string) {
 }
 
 function canAccessRide(actor: any, ride: Ride) {
-  return actor?.role === 'admin' || ride.riderId === actor?.id || ride.driverId === actor?.id;
+  if (!actor?.id || !actor?.role) return false;
+  return actor.role === 'admin' || ride.riderId === actor.id || ride.driverId === actor.id;
 }
 
 export async function estimate(body: any, _params?: any, _query?: any) {
