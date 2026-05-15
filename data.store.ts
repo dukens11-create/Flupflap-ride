@@ -83,8 +83,6 @@ export type TicketReply = {
   message: string;
   createdAt: string;
 };
-
-
 export type WalletBalance = {
   userId: string;
   balanceCents: number;
