@@ -71,7 +71,7 @@ A GitHub Actions workflow is available at `.github/workflows/ci.yml` and runs:
 
 Added in scope:
 - Rider-facing ride history, ride detail, receipt, and notification retrieval endpoints that fit the existing backend route/service structure.
-- Richer fare estimate responses with estimate ranges, currency, and fare breakdown data for client-side trip previews.
+- Richer fare estimate responses with estimate ranges, currency, surge multiplier, and fare breakdown data for client-side trip previews.
 - Rider cancellation validation tied to ride status plus cancellation receipt-oriented response data.
 - Foundational rider ratings/reviews support with stored review text and driver rating rollups.
 - Ride lifecycle timeline events that power rider-visible notifications without introducing a separate messaging subsystem yet.

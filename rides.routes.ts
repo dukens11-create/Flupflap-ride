@@ -16,6 +16,8 @@ const router = Router();
 router.get('/health', controller.health);
 router.use(requireAuth);
 router.post('/estimate', validateBody(rideEstimateSchema), controller.estimate);
+router.get('/history', controller.history);
+router.get('/:rideId', controller.detail);
 router.post('/request', requireRole('rider'), validateBody(rideRequestSchema), controller.request);
 router.post('/history', requireRole('rider'), validateBody(rideHistorySchema), controller.history);
 router.post('/detail', requireRole('rider'), validateBody(rideLookupSchema), controller.detail);

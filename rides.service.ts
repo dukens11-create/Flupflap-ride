@@ -1,6 +1,18 @@
 import { dispatchRide } from './dispatch.engine';
 import { estimateRoute } from './eta.service';
-import { makeId, markStoreDirty, pushWalletTx, store, timestamp, type Ride } from './data.store';
+import {
+  countCompletedRidesForRider,
+  getActiveSurgeMultiplier,
+  getPendingReferralEvent,
+  getPromoByCode,
+  hasUserUsedPromo,
+  makeId,
+  markStoreDirty,
+  pushWalletTx,
+  store,
+  timestamp,
+  type Ride
+} from './data.store';
 import { markDriverAssigned, releaseDriverFromRide } from './drivers.service';
 
 const BASE_FARE = 2.5;
@@ -10,7 +22,7 @@ const CURRENCY = 'USD';
 
 function getRide(id: string) {
   const ride = store.rides.get(id);
-  if (!ride) throw new Error('ride not found');
+  if (!ride) return null;
   return ride;
 }
 
@@ -38,8 +50,7 @@ function appendRideEvent(
   actorRole?: string,
   actorId?: string,
   createdAt = timestamp()
-)
-{
+) {
   ride.events = [...getRideEvents(ride), { id: makeId('evt'), type, title, message, actorRole, actorId, createdAt }];
   ride.updatedAt = createdAt;
   markStoreDirty();
@@ -86,7 +97,11 @@ function toRiderRideSummary(ride: Ride) {
 function getRideReceipt(ride: Ride) {
   if (ride.status !== 'completed' && ride.status !== 'canceled') return null;
   const fare = buildFareDetails(ride.miles, ride.minutes);
-  const totalCents = ride.status === 'completed' ? Math.round(fare.fareEstimate * 100) : 0;
+  const surgeMultiplier = ride.surgeMultiplier || 1;
+  // ride.fareEstimate already incorporates surge; compute gross from it directly
+  const grossCents = ride.status === 'completed' ? Math.round(ride.fareEstimate * 100) : 0;
+  const discountCents = ride.discountCents || 0;
+  const totalCents = Math.max(0, grossCents - discountCents);
   const payment = Array.from(store.payments.values()).find(entry => entry.rideId === ride.id);
   const walletEntries = store.walletTx.filter(tx => tx.reason.startsWith(`ride:${ride.id}:`));
   return {
@@ -99,6 +114,8 @@ function getRideReceipt(ride: Ride) {
     currency: fare.currency,
     issuedAt: ride.updatedAt,
     fareBreakdown: fare,
+    surgeMultiplier,
+    discountCents,
     totalCents,
     paymentStatus: payment?.status || (ride.status === 'completed' ? 'settled_internal' : 'not_charged'),
     walletEntries: walletEntries.map(entry => ({
@@ -125,10 +142,9 @@ function updateDriverRating(driverId?: string) {
   return profile.rating;
 }
 
-function getOwnedRideForRider(rideId: string, riderId: string, action: string) {
-  const ride = getRide(rideId);
-  if (!riderId || ride.riderId !== riderId) return { error: `only rider can ${action}` };
-  return { ride };
+function canAccessRide(authenticatedUser: any, ride: Ride) {
+  if (!authenticatedUser?.id || !authenticatedUser?.role) return false;
+  return authenticatedUser.role === 'admin' || ride.riderId === authenticatedUser.id || ride.driverId === authenticatedUser.id;
 }
 
 export async function estimate(body: any, _params?: any, _query?: any) {
@@ -136,15 +152,23 @@ export async function estimate(body: any, _params?: any, _query?: any) {
   const minutes = Number(body?.minutes || body?.etaMinutes || 0);
   const route = await estimateRoute({ distanceMiles: miles || undefined, etaMinutes: minutes || undefined });
   const fare = buildFareDetails(route.distanceMiles, route.etaMinutes);
+  const surgeMultiplier = getActiveSurgeMultiplier();
+  const fareEstimate = roundToTwoDecimals(fare.fareEstimate * surgeMultiplier);
+  const fareEstimateRange = {
+    low: roundToTwoDecimals(fare.fareEstimateRange.low * surgeMultiplier),
+    high: roundToTwoDecimals(fare.fareEstimateRange.high * surgeMultiplier)
+  };
   return {
     module: 'rides',
     action: 'estimate',
     ok: true,
     route,
     currency: fare.currency,
-    fareEstimate: fare.fareEstimate,
-    fareEstimateRange: fare.fareEstimateRange,
-    fareBreakdown: fare,
+    baseFare: fare.fareEstimate,
+    surgeMultiplier,
+    fareEstimate,
+    fareEstimateRange,
+    fareBreakdown: { ...fare, fareEstimate, fareEstimateRange },
     requestPreview: {
       pickupLat: body?.pickupLat,
       pickupLng: body?.pickupLng,
@@ -159,6 +183,34 @@ export async function request(body: any, _params?: any, _query?: any) {
   if (!riderId) return { module: 'rides', action: 'request', error: 'riderId is required' };
 
   const estimated = await estimate(body);
+  const fareCents = Math.round(estimated.fareEstimate * 100);
+
+  let promoId: string | undefined;
+  let discountCents = 0;
+  const promoCode: string | undefined = body?.promoCode;
+  if (promoCode) {
+    const promo = getPromoByCode(promoCode);
+    if (!promo) return { module: 'rides', action: 'request', error: 'promo code not found' };
+    if (promo.expiresAt && new Date(promo.expiresAt) < new Date()) {
+      return { module: 'rides', action: 'request', error: 'promo code has expired' };
+    }
+    if (promo.maxUsages != null && promo.usageCount >= promo.maxUsages) {
+      return { module: 'rides', action: 'request', error: 'promo code has reached its usage limit' };
+    }
+    if (promo.minFareCents != null && fareCents < promo.minFareCents) {
+      return { module: 'rides', action: 'request', error: 'fare does not meet promo minimum' };
+    }
+    if (hasUserUsedPromo(riderId, promo.id)) {
+      return { module: 'rides', action: 'request', error: 'promo code already used by this rider' };
+    }
+    discountCents = promo.discountType === 'flat'
+      ? Math.min(promo.discountValue, fareCents)
+      : Math.round(fareCents * promo.discountValue / 100);
+    promoId = promo.id;
+    promo.usageCount += 1;
+    markStoreDirty();
+  }
+
   const now = timestamp();
   const ride: Ride = {
     id: makeId('ride'),
@@ -170,6 +222,9 @@ export async function request(body: any, _params?: any, _query?: any) {
     miles: estimated.route.distanceMiles,
     minutes: estimated.route.etaMinutes,
     fareEstimate: estimated.fareEstimate,
+    surgeMultiplier: estimated.surgeMultiplier !== 1.0 ? estimated.surgeMultiplier : undefined,
+    promoId,
+    discountCents: discountCents > 0 ? discountCents : undefined,
     status: 'requested',
     events: [
       {
@@ -202,16 +257,20 @@ export async function request(body: any, _params?: any, _query?: any) {
       );
     }
   }
-  return { module: 'rides', action: 'request', ok: true, ride, dispatch, availableActions: getRideAvailableActions(ride) };
+  return { module: 'rides', action: 'request', ok: true, ride, dispatch, discountCents, availableActions: getRideAvailableActions(ride) };
 }
 
 export async function history(body: any, _params?: any, _query?: any) {
-  const riderId = getRiderId(body);
-  if (!riderId) return { module: 'rides', action: 'history', error: 'riderId is required' };
+  const actor = body?.actor;
+  const riderId = actor?.role === 'rider' ? actor?.id : getRiderId(body);
   const limit = Math.max(1, Math.min(100, Number(body?.limit || 20)));
   const status = body?.status;
   const rides = Array.from(store.rides.values())
-    .filter(ride => ride.riderId === riderId)
+    .filter(ride => {
+      if (actor?.role === 'admin') return true;
+      if (actor?.role === 'driver') return ride.driverId === actor.id;
+      return ride.riderId === riderId;
+    })
     .filter(ride => !status || ride.status === status)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return {
@@ -228,34 +287,36 @@ export async function history(body: any, _params?: any, _query?: any) {
   };
 }
 
-export async function detail(body: any, _params?: any, _query?: any) {
-  const riderId = getRiderId(body);
-  const result = getOwnedRideForRider(body?.rideId, riderId, 'view ride detail');
-  if ('error' in result) return { module: 'rides', action: 'detail', error: result.error };
+export async function detail(body: any, params?: any, _query?: any) {
+  const rideId = params?.rideId || body?.rideId;
+  const ride = getRide(rideId);
+  if (!ride) return { module: 'rides', action: 'detail', error: 'ride not found' };
+  if (!canAccessRide(body?.actor, ride)) return { module: 'rides', action: 'detail', error: 'forbidden' };
   return {
     module: 'rides',
     action: 'detail',
     ok: true,
-    ride: toRiderRideSummary(result.ride),
-    receipt: getRideReceipt(result.ride),
-    notifications: getRideEvents(result.ride)
+    ride: toRiderRideSummary(ride),
+    receipt: getRideReceipt(ride),
+    notifications: getRideEvents(ride)
   };
 }
 
 export async function receipt(body: any, _params?: any, _query?: any) {
   const riderId = getRiderId(body);
-  const result = getOwnedRideForRider(body?.rideId, riderId, 'view receipt');
-  if ('error' in result) return { module: 'rides', action: 'receipt', error: result.error };
-  const receipt = getRideReceipt(result.ride);
-  if (!receipt) return { module: 'rides', action: 'receipt', error: 'receipt unavailable until the ride is completed or canceled' };
-  return { module: 'rides', action: 'receipt', ok: true, receipt, ride: toRiderRideSummary(result.ride) };
+  const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'receipt', error: 'ride not found' };
+  if (!riderId || ride.riderId !== riderId) return { module: 'rides', action: 'receipt', error: 'only rider can view receipt' };
+  const rideReceipt = getRideReceipt(ride);
+  if (!rideReceipt) return { module: 'rides', action: 'receipt', error: 'receipt unavailable until the ride is completed or canceled' };
+  return { module: 'rides', action: 'receipt', ok: true, receipt: rideReceipt, ride: toRiderRideSummary(ride) };
 }
 
 export async function notifications(body: any, _params?: any, _query?: any) {
   const riderId = getRiderId(body);
   if (!riderId) return { module: 'rides', action: 'notifications', error: 'riderId is required' };
   const limit = Math.max(1, Math.min(100, Number(body?.limit || 20)));
-  const notifications = Array.from(store.rides.values())
+  const rideNotifications = Array.from(store.rides.values())
     .filter(ride => ride.riderId === riderId)
     .filter(ride => !body?.rideId || ride.id === body.rideId)
     .flatMap(ride =>
@@ -270,13 +331,14 @@ export async function notifications(body: any, _params?: any, _query?: any) {
     module: 'rides',
     action: 'notifications',
     ok: true,
-    notifications: notifications.slice(0, limit),
-    total: notifications.length
+    notifications: rideNotifications.slice(0, limit),
+    total: rideNotifications.length
   };
 }
 
 export async function accept(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'accept', error: 'ride not found' };
   if (ride.status !== 'requested' && ride.status !== 'accepted') {
     return { module: 'rides', action: 'accept', error: `ride cannot be accepted: current status is ${ride.status}` };
   }
@@ -296,6 +358,7 @@ export async function accept(body: any, _params?: any, _query?: any) {
 
 export async function start(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'start', error: 'ride not found' };
   const driverId = getDriverId(body);
   if (!driverId || ride.driverId !== driverId) return { module: 'rides', action: 'start', error: 'only assigned driver can start ride' };
   if (ride.status !== 'accepted') return { module: 'rides', action: 'start', error: 'ride not accepted' };
@@ -306,6 +369,7 @@ export async function start(body: any, _params?: any, _query?: any) {
 
 export async function complete(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'complete', error: 'ride not found' };
   const driverId = getDriverId(body);
   if (!driverId || ride.driverId !== driverId) return { module: 'rides', action: 'complete', error: 'only assigned driver can complete ride' };
   if (ride.status !== 'started') return { module: 'rides', action: 'complete', error: 'ride not started' };
@@ -314,15 +378,32 @@ export async function complete(body: any, _params?: any, _query?: any) {
   appendRideEvent(ride, 'ride_completed', 'Ride completed', 'Your trip is complete and receipt details are ready.', 'driver', driverId);
   if (ride.driverId) releaseDriverFromRide(ride.driverId);
 
-  const amountCents = Math.round(ride.fareEstimate * 100);
+  const grossCents = Math.round(ride.fareEstimate * 100);
+  const discountCents = ride.discountCents || 0;
+  const amountCents = Math.max(0, grossCents - discountCents);
   if (ride.riderId) pushWalletTx(ride.riderId, 'debit', amountCents, `ride:${ride.id}:fare`);
   if (ride.driverId) pushWalletTx(ride.driverId, 'credit', Math.round(amountCents * 0.8), `ride:${ride.id}:payout`);
 
-  return { module: 'rides', action: 'complete', ok: true, ride, amountCents, receipt: getRideReceipt(ride) };
+  // Process referral bonus on rider's first completed ride
+  if (ride.riderId) {
+    const completedCount = countCompletedRidesForRider(ride.riderId);
+    if (completedCount === 1) {
+      const referral = getPendingReferralEvent(ride.riderId);
+      if (referral) {
+        referral.paid = true;
+        referral.rideId = ride.id;
+        markStoreDirty();
+        pushWalletTx(referral.referrerUserId, 'credit', referral.bonusCents, `referral:${referral.id}:bonus`);
+      }
+    }
+  }
+
+  return { module: 'rides', action: 'complete', ok: true, ride, grossCents, discountCents, amountCents, receipt: getRideReceipt(ride) };
 }
 
 export async function cancel(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'cancel', error: 'ride not found' };
   const riderId = getRiderId(body);
   if (!riderId || ride.riderId !== riderId) return { module: 'rides', action: 'cancel', error: 'only rider can cancel ride' };
   if (ride.status === 'canceled') return { module: 'rides', action: 'cancel', error: 'ride already canceled' };
@@ -349,6 +430,7 @@ export async function cancel(body: any, _params?: any, _query?: any) {
 
 export async function rate(body: any, _params?: any, _query?: any) {
   const ride = getRide(body?.rideId);
+  if (!ride) return { module: 'rides', action: 'rate', error: 'ride not found' };
   const riderId = getRiderId(body);
   if (!riderId || ride.riderId !== riderId) return { module: 'rides', action: 'rate', error: 'only rider can rate ride' };
   if (ride.status !== 'completed') return { module: 'rides', action: 'rate', error: 'only completed rides can be rated' };
