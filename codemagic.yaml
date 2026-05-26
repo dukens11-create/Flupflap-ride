@@ -33,7 +33,7 @@ workflows:
           regenerate_platforms=0
           for file in "${required_platform_files[@]}"; do
             if [ ! -e "$file" ]; then
-              echo "Missing committed Flutter platform file: $file"
+              echo "Platform file missing, will attempt regeneration: $file"
               regenerate_platforms=1
             fi
           done
