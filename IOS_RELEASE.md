@@ -31,6 +31,11 @@ Required Android files include:
 
 After pushing the commit, retry the Codemagic build.
 
+## Repository and PR scope guard
+
+- Apply this Runner-scheme fix only in `dukens11-create/drive`.
+- Do not open repeated PRs for the same missing-scheme root cause when the required files listed above are already committed; continue on the existing PR/branch instead.
+
 ## GitHub verification checklist
 
 Before retrying Codemagic, verify these files are visible in GitHub on the branch being built:
