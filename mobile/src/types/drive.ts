@@ -22,6 +22,7 @@ export type LatLng = {
 
 export type NearbyRequest = {
   id: string;
+  zoneName: string;
   position: LatLng;
   distanceKm: number;
   surgeMultiplier: number;

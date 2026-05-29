@@ -8,7 +8,7 @@ const collapsedHeight = 176;
 const expandedHeight = 436;
 
 export const BottomStatsPanel = () => {
-  const { metrics, rideHistory, profile, activeTrip } = useDriveRealtime();
+  const { metrics, rideHistory, profile, activeTrip, nearbyRequests } = useDriveRealtime();
   const panelHeight = useSharedValue(collapsedHeight);
 
   const toggleExpanded = () => {
@@ -24,6 +24,10 @@ export const BottomStatsPanel = () => {
     : profile.isOnline
       ? 'Online now and matching with nearby riders in the busiest zones.'
       : 'You are offline. Toggle online when you are ready to drive.';
+  const peakZone = nearbyRequests.reduce<(typeof nearbyRequests)[number] | null>(
+    (best, current) => (!best || current.surgeMultiplier > best.surgeMultiplier ? current : best),
+    null
+  );
 
   return (
     <Animated.View style={panelStyle} className="absolute bottom-20 left-0 right-0 z-20 rounded-t-[32px] bg-white px-5 pb-5 pt-4 shadow-soft dark:bg-zinc-900">
@@ -59,7 +63,10 @@ export const BottomStatsPanel = () => {
       </View>
 
       <View className="mt-4 flex-row gap-3">
-        <InfoCard title="Peak area" subtitle="Mission Bay surge x1.4 active now" />
+        <InfoCard
+          title="Peak area"
+          subtitle={peakZone ? `${peakZone.zoneName} surge x${peakZone.surgeMultiplier.toFixed(1)} active now` : 'City demand is steady'}
+        />
         <InfoCard title="Vehicle" subtitle={profile.vehicleStatus === 'good' ? 'Inspection up to date' : 'Service due soon'} />
       </View>
     </Animated.View>

@@ -2,6 +2,7 @@ import type { LatLng, NearbyRequest, RideHistoryItem } from '../../types/drive';
 
 const downtown: LatLng = { latitude: 37.7749, longitude: -122.4194 };
 const pointOffsets = [0.22, -0.18, 0.3, -0.12, 0.14, -0.26];
+const nearbyZones = ['Mission Bay', 'SoMa', 'Downtown', 'Financial District'];
 const nearbyDistances = [0.9, 1.3, 2.1, 3.2];
 const nearbySurge = [1.1, 1.4, 1.2, 1.5];
 
@@ -15,6 +16,7 @@ export const buildTripPoint = (index = 0, spread = 0.018): LatLng => ({
 export const buildNearbyRequests = (): NearbyRequest[] =>
   nearbyDistances.map((distanceKm, index) => ({
     id: `nearby-${index + 1}`,
+    zoneName: nearbyZones[index],
     position: buildTripPoint(index + 1),
     distanceKm,
     surgeMultiplier: nearbySurge[index],
