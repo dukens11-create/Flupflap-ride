@@ -23,7 +23,8 @@ workflows:
       - name: Install EAS CLI
         script: npm install --global eas-cli
       - name: Validate EAS authentication
-        # Keep EXPO_TOKEN in Codemagic secure environment variables for non-interactive production builds.
+        # Requires a secure EXPO_TOKEN in Codemagic (Project -> Settings -> Environment variables).
+        # Generate locally after `eas login` using: `eas token:create`.
         script: test -n "$EXPO_TOKEN" || { echo "EXPO_TOKEN environment variable is not set. Configure it in Codemagic secure environment variables."; exit 1; }
       - name: Ensure Android project exists for Gradle release build
         working_directory: mobile
