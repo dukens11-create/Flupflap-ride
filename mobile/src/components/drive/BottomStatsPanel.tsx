@@ -1,4 +1,4 @@
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { useDriveRealtime } from '../../context/DriveRealtimeContext';
@@ -27,9 +27,9 @@ export const BottomStatsPanel = () => {
 
   return (
     <Animated.View style={panelStyle} className="absolute bottom-20 left-0 right-0 z-20 rounded-t-[32px] bg-white px-5 pb-5 pt-4 shadow-soft dark:bg-zinc-900">
-      <View className="items-center pb-3" onTouchEnd={toggleExpanded}>
+      <Pressable className="items-center pb-3" onPress={toggleExpanded}>
         <View className="h-1.5 w-16 rounded-full bg-zinc-300 dark:bg-zinc-700" />
-      </View>
+      </Pressable>
 
       <View className="flex-row justify-between rounded-2xl bg-zinc-100 p-3 dark:bg-zinc-800">
         <StatItem label="Today" value={`$${metrics.earningsToday.toFixed(2)}`} />

@@ -25,6 +25,7 @@ type DriveContextValue = {
 const DriveRealtimeContext = createContext<DriveContextValue | undefined>(undefined);
 
 const requestTone = require('../../assets/sounds/incoming-request.wav');
+const DRIVER_PAYOUT_RATE = 0.78;
 
 const rideTemplates = [
   { pickupAddress: '102 Main St, Downtown', dropoffAddress: 'Pier 39, North Beach' },
@@ -221,7 +222,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
       setMetrics((current) => ({
         ...current,
         tripsCompleted: current.tripsCompleted + 1,
-        earningsToday: Number((current.earningsToday + activeTrip.estimatedFare * 0.78).toFixed(2)),
+        earningsToday: Number((current.earningsToday + activeTrip.estimatedFare * DRIVER_PAYOUT_RATE).toFixed(2)),
       }));
       setRideHistory((current) => [
         {
