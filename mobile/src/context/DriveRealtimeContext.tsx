@@ -26,6 +26,9 @@ const DriveRealtimeContext = createContext<DriveContextValue | undefined>(undefi
 
 const requestTone = require('../../assets/sounds/incoming-request.wav');
 const DRIVER_PAYOUT_RATE = 0.78;
+const HOURS_INCREMENT_PER_TICK = 0.01;
+const INITIAL_REQUEST_DELAY_MS = 4_500;
+const REQUEST_INTERVAL_MS = 28_000;
 
 const rideTemplates = [
   { pickupAddress: '102 Main St, Downtown', dropoffAddress: 'Pier 39, North Beach' },
@@ -131,7 +134,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
 
       setMetrics((current) => ({
         ...current,
-        hoursOnline: Number((current.hoursOnline + 0.01).toFixed(2)),
+        hoursOnline: Number((current.hoursOnline + HOURS_INCREMENT_PER_TICK).toFixed(2)),
       }));
       setNearbyRequests(buildNearbyRequests());
     }, 6000);
@@ -150,8 +153,8 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
       void playIncomingRequestSound();
     };
 
-    const warmup = setTimeout(pushRequest, 4500);
-    const requestTicker = setInterval(pushRequest, 28_000);
+    const warmup = setTimeout(pushRequest, INITIAL_REQUEST_DELAY_MS);
+    const requestTicker = setInterval(pushRequest, REQUEST_INTERVAL_MS);
 
     return () => {
       clearTimeout(warmup);

@@ -4,15 +4,18 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { useDriveRealtime } from '../../context/DriveRealtimeContext';
 import { driverStatusMeta } from '../../utils/driveStatus';
 
-const collapsedHeight = 176;
-const expandedHeight = 436;
+const COLLAPSED_PANEL_HEIGHT = 176;
+const EXPANDED_PANEL_HEIGHT = 436;
 
 export const BottomStatsPanel = () => {
   const { metrics, rideHistory, profile, activeTrip, nearbyRequests } = useDriveRealtime();
-  const panelHeight = useSharedValue(collapsedHeight);
+  const panelHeight = useSharedValue(COLLAPSED_PANEL_HEIGHT);
 
   const toggleExpanded = () => {
-    panelHeight.value = withTiming(panelHeight.value === collapsedHeight ? expandedHeight : collapsedHeight, { duration: 250 });
+    panelHeight.value = withTiming(
+      panelHeight.value === COLLAPSED_PANEL_HEIGHT ? EXPANDED_PANEL_HEIGHT : COLLAPSED_PANEL_HEIGHT,
+      { duration: 250 }
+    );
   };
 
   const panelStyle = useAnimatedStyle(() => ({
