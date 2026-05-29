@@ -12,8 +12,17 @@ export default function DriveHomeScreen() {
   const mapRef = useRef<MapView | null>(null);
   const scheme = useColorScheme();
   const { location, nearbyRequests } = useDriveRealtime();
+  const lastCameraCenterRef = useRef(location);
 
   useEffect(() => {
+    const lastCenter = lastCameraCenterRef.current;
+    const latitudeShift = Math.abs(lastCenter.latitude - location.latitude);
+    const longitudeShift = Math.abs(lastCenter.longitude - location.longitude);
+
+    if (latitudeShift < 0.0004 && longitudeShift < 0.0004) {
+      return;
+    }
+
     mapRef.current?.animateCamera(
       {
         center: location,
@@ -21,6 +30,7 @@ export default function DriveHomeScreen() {
       },
       { duration: 700 }
     );
+    lastCameraCenterRef.current = location;
   }, [location]);
 
   return (

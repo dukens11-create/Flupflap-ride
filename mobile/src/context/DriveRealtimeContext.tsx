@@ -1,7 +1,7 @@
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { buildNearbyRequests, getSeedLocation, seedRideHistory } from '../services/realtime/mockDriveFeed';
 import type { DriverMetrics, DriverProfile, LatLng, RideHistoryItem, RideRequest } from '../types/drive';
@@ -68,6 +68,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
   const [nearbyRequests, setNearbyRequests] = useState(buildNearbyRequests());
   const [activeRequest, setActiveRequest] = useState<RideRequest | null>(null);
   const [rideHistory, setRideHistory] = useState<RideHistoryItem[]>(seedRideHistory());
+  const tripResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let watcher: Location.LocationSubscription | null = null;
@@ -89,6 +90,12 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     void setupLocationTracking();
 
     return () => watcher?.remove();
+  }, []);
+
+  useEffect(() => () => {
+    if (tripResetTimeoutRef.current) {
+      clearTimeout(tripResetTimeoutRef.current);
+    }
   }, []);
 
   useEffect(() => {
@@ -135,7 +142,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
   }, [activeRequest]);
 
   const acceptRequest = useCallback(() => {
-    if (!activeRequest) {
+    if (!activeRequest || !profile.isOnline || profile.status !== 'available') {
       return;
     }
 
@@ -157,10 +164,15 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     ]);
     setActiveRequest(null);
 
-    setTimeout(() => {
-      setProfile((current) => ({ ...current, status: 'available' }));
+    if (tripResetTimeoutRef.current) {
+      clearTimeout(tripResetTimeoutRef.current);
+    }
+
+    tripResetTimeoutRef.current = setTimeout(() => {
+      setProfile((current) => ({ ...current, status: current.isOnline ? 'available' : 'break' }));
+      tripResetTimeoutRef.current = null;
     }, 10_000);
-  }, [activeRequest]);
+  }, [activeRequest, profile.isOnline, profile.status]);
 
   const declineRequest = useCallback(() => {
     setActiveRequest(null);
