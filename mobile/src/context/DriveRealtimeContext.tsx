@@ -35,6 +35,8 @@ const DriveRealtimeContext = createContext<DriveContextValue | undefined>(undefi
 const HOURS_INCREMENT_PER_TICK = 0.01;
 const DATA_REFRESH_INTERVAL_MS = 6000;
 const REQUEST_EXPIRATION_SECONDS = 18;
+const MOCK_REQUEST_PREFIX = 'mock-request-';
+type PendingRideRequest = Omit<RideRequest, 'expiresAt'>;
 
 const defaultProfile: DriverProfile = {
   id: 'driver',
@@ -165,7 +167,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
   const [metrics, setMetrics] = useState<DriverMetrics>(defaultMetrics);
   const [location, setLocation] = useState<LatLng>(getSeedLocation());
   const [nearbyRequests, setNearbyRequests] = useState(buildNearbyRequests());
-  const [requestQueue, setRequestQueue] = useState<RideRequest[]>([]);
+  const [requestQueue, setRequestQueue] = useState<PendingRideRequest[]>([]);
   const [activeRequest, setActiveRequest] = useState<RideRequest | null>(null);
   const [backendActiveTrip, setBackendActiveTrip] = useState<ActiveTrip | null>(null);
   const [mockActiveTrip, setMockActiveTrip] = useState<ActiveTrip | null>(null);
@@ -308,9 +310,10 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     }
 
     const syncCountdown = () => {
-      const secondsLeft = Math.max(0, Math.ceil((activeRequest.expiresAt - Date.now()) / 1000));
+      const now = Date.now();
+      const secondsLeft = Math.max(0, Math.ceil((activeRequest.expiresAt - now) / 1000));
       setRequestTimeLeft(secondsLeft);
-      if (secondsLeft === 0) {
+      if (activeRequest.expiresAt <= now) {
         setActiveRequest((current) => (current?.id === activeRequest.id ? null : current));
       }
     };
@@ -387,7 +390,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
       return;
     }
     try {
-      if (activeRequest.id.startsWith('mock-request-')) {
+      if (activeRequest.id.startsWith(MOCK_REQUEST_PREFIX)) {
         setMockActiveTrip(mapRequestToMockTrip(activeRequest));
         setActiveRequest(null);
         setRequestQueue([]);
@@ -418,7 +421,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     }
 
     try {
-      if (activeTrip.rideId.startsWith('mock-request-')) {
+      if (activeTrip.rideId.startsWith(MOCK_REQUEST_PREFIX)) {
         if (activeTrip.status === 'accepted') {
           setMockActiveTrip(appendMockTripEvent(activeTrip, 'in-progress'));
         } else if (activeTrip.status === 'in-progress') {
@@ -432,7 +435,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
         await ridesApi.complete(activeTrip.rideId);
       }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (!activeTrip.rideId.startsWith('mock-request-')) {
+      if (!activeTrip.rideId.startsWith(MOCK_REQUEST_PREFIX)) {
         await refreshData();
       }
     } catch (err) {

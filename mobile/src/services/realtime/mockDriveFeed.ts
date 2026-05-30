@@ -26,7 +26,7 @@ export const buildNearbyRequests = (): NearbyRequest[] =>
     surgeMultiplier: nearbySurge[index],
   }));
 
-export const buildIncomingRideRequests = (): RideRequest[] =>
+export const buildIncomingRideRequests = (): Array<Omit<RideRequest, 'expiresAt'>> =>
   nearbyDistances.map((distanceKm, index) => ({
     id: `mock-request-${index + 1}`,
     riderName: riderNames[index],
@@ -39,7 +39,6 @@ export const buildIncomingRideRequests = (): RideRequest[] =>
     estimatedFare: Number((12.5 + distanceKm * 2.9 + index * 1.75).toFixed(2)),
     pickupEtaMinutes: 2 + index,
     riderRating: riderRatings[index],
-    expiresAt: 0,
   }));
 
 export const seedRideHistory = (): RideHistoryItem[] => [
