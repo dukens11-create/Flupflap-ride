@@ -49,13 +49,23 @@ const playForegroundSound = async (kind: DriverAlertKind) => {
     return;
   }
 
-  await ensureAudioMode();
-  const playback = await Audio.Sound.createAsync(soundAsset, { shouldPlay: true, volume: 1 });
-  playback.sound.setOnPlaybackStatusUpdate((status) => {
-    if ('isLoaded' in status && status.isLoaded && status.didJustFinish) {
-      void playback.sound.unloadAsync();
+  let sound: Audio.Sound | null = null;
+
+  try {
+    await ensureAudioMode();
+    const playback = await Audio.Sound.createAsync(soundAsset, { shouldPlay: true, volume: 1 });
+    sound = playback.sound;
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if ('isLoaded' in status && status.isLoaded && status.didJustFinish) {
+        void sound?.unloadAsync();
+      }
+    });
+  } catch (error) {
+    if (sound) {
+      await sound.unloadAsync();
     }
-  });
+    throw error;
+  }
 };
 
 export const configureDriverAlerts = async () => {

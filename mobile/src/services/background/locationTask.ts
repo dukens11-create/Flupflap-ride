@@ -30,7 +30,10 @@ const postDriverLocation = async (latitude: number, longitude: number) => {
   });
 
   if (!response.ok) {
-    throw new Error(`background location sync failed with status ${response.status}`);
+    const responseBody = await response.text().catch(() => '');
+    throw new Error(
+      `background location sync failed for ${apiBaseUrl}/api/drivers/location with status ${response.status}${responseBody ? `: ${responseBody}` : ''}`
+    );
   }
 };
 

@@ -39,6 +39,8 @@ const fareFormatter = new Intl.NumberFormat('en-US', {
 
 const formatFare = (amount: number) => fareFormatter.format(amount);
 
+const buildSuppressedTripAlertKey = (rideId: string, state: 'in-progress' | 'completed') => `${rideId}:${state}`;
+
 const DriveRealtimeContext = createContext<DriveContextValue | undefined>(undefined);
 
 const HOURS_INCREMENT_PER_TICK = 0.01;
@@ -121,10 +123,10 @@ const mapRideToHistory = (ride: RideSummary): RideHistoryItem => ({
 
 const mapRideToRequest = (ride: RideSummary): RideRequest => {
   const activeTrip = mapRideToActiveTrip(ride);
-  const parsedExpirySource = Date.parse(ride.latestEvent?.createdAt ?? ride.updatedAt ?? ride.createdAt);
+  const baseTimestamp = Date.parse(ride.latestEvent?.createdAt ?? ride.updatedAt ?? ride.createdAt);
   return {
     ...activeTrip,
-    expiresAt: (Number.isFinite(parsedExpirySource) ? parsedExpirySource : Date.now()) + REQUEST_RESPONSE_WINDOW_MS,
+    expiresAt: (Number.isFinite(baseTimestamp) ? baseTimestamp : Date.now()) + REQUEST_RESPONSE_WINDOW_MS,
   };
 };
 
@@ -358,7 +360,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
 
     if (!activeTrip) {
       if (previousTrip?.status === 'in-progress') {
-        if (suppressedTripAlertRef.current === `${previousTrip.rideId}:completed`) {
+        if (suppressedTripAlertRef.current === buildSuppressedTripAlertKey(previousTrip.rideId, 'completed')) {
           suppressedTripAlertRef.current = null;
           previousTripRef.current = null;
           return;
@@ -375,7 +377,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     }
 
     if (previousTrip.status !== activeTrip.status && activeTrip.status === 'in-progress') {
-      if (suppressedTripAlertRef.current === `${activeTrip.rideId}:in-progress`) {
+      if (suppressedTripAlertRef.current === buildSuppressedTripAlertKey(activeTrip.rideId, 'in-progress')) {
         suppressedTripAlertRef.current = null;
         previousTripRef.current = { rideId: activeTrip.rideId, status: activeTrip.status };
         return;
@@ -440,11 +442,11 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     try {
       if (activeTrip.status === 'accepted') {
         await ridesApi.start(activeTrip.rideId);
-        suppressedTripAlertRef.current = `${activeTrip.rideId}:in-progress`;
+        suppressedTripAlertRef.current = buildSuppressedTripAlertKey(activeTrip.rideId, 'in-progress');
         await sendDriverAlert('trip-started', 'Trip started', `${activeTrip.riderName} is onboard. Continue to the destination.`);
       } else if (activeTrip.status === 'in-progress') {
         await ridesApi.complete(activeTrip.rideId);
-        suppressedTripAlertRef.current = `${activeTrip.rideId}:completed`;
+        suppressedTripAlertRef.current = buildSuppressedTripAlertKey(activeTrip.rideId, 'completed');
         await sendDriverAlert('trip-ended', 'Trip ended', `${activeTrip.riderName}'s trip is complete.`);
       }
       await refreshData();
