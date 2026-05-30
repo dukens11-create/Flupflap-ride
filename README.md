@@ -4,11 +4,8 @@ Drive is now a TypeScript codebase with:
 
 - Backend API at repository root (Node.js + TypeScript)
 - Mobile driver app at `mobile/` (React Native + Expo Router + NativeWind)
-<<<<<<< HEAD
 - Admin dashboard at `admin/` (Next.js + TypeScript + Tailwind CSS)
-=======
 - Passenger web app at `web/` (Next.js + TypeScript + Tailwind CSS)
->>>>>>> origin/main
 
 ## Mobile app: Drive Home
 
@@ -124,14 +121,10 @@ Codemagic Android builds use EAS non-interactive auth and require a secure `EXPO
 
 ## CI
 
-<<<<<<< HEAD
-- GitHub Actions (`.github/workflows/ci.yml`) runs backend install/build/tests, admin lint/build validation, and mobile typecheck + Jest coverage checks on PRs.
-=======
-- GitHub Actions (`.github/workflows/ci.yml`) runs backend build/test/audit checks, mobile typecheck/Jest coverage/Expo export checks, dependency review on PRs, and auto-builds optional admin/passenger app workspaces when they are added to the repository.
+- GitHub Actions (`.github/workflows/ci.yml`) runs backend build/test/audit checks, admin lint/build validation, mobile typecheck/Jest coverage/Expo export checks, web typecheck/build checks, dependency review on PRs, and auto-builds optional passenger app workspaces when they are added to the repository.
 - GitHub Actions (`.github/workflows/codeql.yml`) runs scheduled and PR CodeQL analysis for repository security scanning.
 - GitHub Actions (`.github/workflows/release.yml`) uses Release Please for semantic versioning and changelog generation.
 - GitHub Actions (`.github/workflows/deploy.yml`) publishes smoke-tested backend container images to GHCR for development, staging, and production promotion via GitHub Environments.
->>>>>>> origin/main
 - Codemagic (`codemagic.yaml`) runs Expo mobile install/typecheck and EAS local Android APK build from `mobile/` (requires secure `EXPO_TOKEN`).
 
 See **[CI_CD.md](./CI_CD.md)** for the full CI/CD, deployment, environment, and rollback workflow.

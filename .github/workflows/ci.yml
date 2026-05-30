@@ -113,13 +113,6 @@ jobs:
           name: mobile-coverage
           path: mobile/coverage
 
-<<<<<<< HEAD
-  admin-build:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: admin
-=======
       - name: Upload Expo export bundle
         if: always()
         uses: actions/upload-artifact@v4
@@ -138,7 +131,6 @@ jobs:
     defaults:
       run:
         working-directory: web
->>>>>>> origin/main
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -148,18 +140,6 @@ jobs:
         with:
           node-version: 20
           cache: npm
-<<<<<<< HEAD
-          cache-dependency-path: admin/package-lock.json
-
-      - name: Install admin dependencies
-        run: npm ci
-
-      - name: Admin lint
-        run: npm run lint
-
-      - name: Admin build
-        run: npm run build
-=======
           cache-dependency-path: web/package-lock.json
 
       - name: Install web dependencies
@@ -169,6 +149,31 @@ jobs:
         run: npm run typecheck
 
       - name: Web production build
+        run: npm run build
+
+  admin-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install admin dependencies
+        run: npm ci
+
+      - name: Admin lint
+        run: npm run lint
+
+      - name: Admin build
         run: npm run build
 
   optional-app-builds:
@@ -207,7 +212,6 @@ jobs:
             echo "No $label workspace found; skipping."
           }
 
-          run_optional_app "admin dashboard" admin apps/admin
           run_optional_app "passenger web" passenger-web apps/passenger-web
           run_optional_app "passenger mobile" passenger-mobile apps/passenger-mobile
 
@@ -220,4 +224,3 @@ jobs:
 
       - name: Dependency review
         uses: actions/dependency-review-action@v4
->>>>>>> origin/main
