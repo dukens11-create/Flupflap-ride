@@ -50,7 +50,12 @@ function formatDate(value?: string) {
 function csvDownload(filename: string, rows: Array<Record<string, unknown>>) {
   if (!rows.length) return;
   const headers = Object.keys(rows[0]);
-  const csv = [headers.join(','), ...rows.map(row => headers.map(header => JSON.stringify(row[header] ?? '')).join(','))].join('\n');
+  const escapeCsvValue = (value: unknown) => {
+    const raw = String(value ?? '');
+    const escaped = raw.replace(/"/g, '""');
+    return /[",\n]/.test(raw) ? `"${escaped}"` : escaped;
+  };
+  const csv = [headers.map(escapeCsvValue).join(','), ...rows.map(row => headers.map(header => escapeCsvValue(row[header])).join(','))].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

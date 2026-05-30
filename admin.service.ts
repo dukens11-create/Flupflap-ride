@@ -17,6 +17,8 @@ import {
 } from './data.store';
 
 type SafeUser = Omit<User, 'password'> & { suspended?: boolean };
+const MS_PER_HOUR = 3_600_000;
+const API_KEY_RANDOM_BYTES = 18;
 
 function sanitizeUser(user: (User & { suspended?: boolean }) | undefined): SafeUser | undefined {
   if (!user) return undefined;
@@ -29,8 +31,8 @@ function sanitizeApiKey(apiKey: AdminApiKey) {
   return safe;
 }
 
-function safeNumber(value: any, fallback = 0) {
-  const numeric = Number(value);
+function safeNumber(rawValue: unknown, fallback = 0) {
+  const numeric = Number(rawValue);
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
@@ -234,7 +236,7 @@ export async function admin_overview(_body: any, _params?: any, _query?: any) {
             return sum + Math.max(0, updated - created);
           }, 0) /
           closedTickets.length /
-          3_600_000
+          MS_PER_HOUR
         ).toFixed(1)
       )
     : 0;
@@ -430,7 +432,7 @@ export async function upsert_market(body: any, _params?: any, _query?: any) {
 export async function create_api_key(body: any, _params?: any, _query?: any) {
   const name = String(body?.name || '').trim();
   if (!name) return { module: 'admin', action: 'create-api-key', error: 'api key name is required' };
-  const plainTextKey = `drv_admin_${randomBytes(18).toString('hex')}`;
+  const plainTextKey = `drv_admin_${randomBytes(API_KEY_RANDOM_BYTES).toString('hex')}`;
   const apiKey: AdminApiKey = {
     id: makeId('key'),
     name,

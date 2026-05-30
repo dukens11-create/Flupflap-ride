@@ -34,7 +34,7 @@ async function loginAdmin(baseUrl: string) {
   const res = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: 'admin@flupflap.com', password: 'change_me_admin_password' })
+    body: JSON.stringify({ email: 'admin@drive.com', password: 'change_me_admin_password' })
   });
   const body = await res.json() as any;
   return body.accessToken as string;

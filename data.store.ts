@@ -446,7 +446,7 @@ if (!hasAdmin) {
   const adminId = makeId('user');
   store.users.set(adminId, {
     id: adminId,
-    email: 'admin@flupflap.com',
+    email: 'admin@drive.com',
     password: hashPassword(env.adminSeedPassword),
     role: 'admin',
     createdAt: timestamp()

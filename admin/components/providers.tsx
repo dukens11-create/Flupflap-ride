@@ -6,7 +6,8 @@ import { AdminOverview, adminApi, apiBaseUrl, decodeToken, loginAdmin, Session }
 
 const SESSION_KEY = 'drive-admin-session';
 const THEME_KEY = 'drive-admin-theme';
-const DEFAULT_POLL_INTERVAL_MS = Math.max(15000, Number(process.env.NEXT_PUBLIC_ADMIN_POLL_INTERVAL_MS || '60000'));
+const MIN_POLL_INTERVAL_MS = 15000;
+const DEFAULT_POLL_INTERVAL_MS = Math.max(MIN_POLL_INTERVAL_MS, Number(process.env.NEXT_PUBLIC_ADMIN_POLL_INTERVAL_MS || '60000'));
 
 type ThemeValue = {
   theme: 'light' | 'dark';

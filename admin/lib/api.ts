@@ -154,7 +154,7 @@ export type AdminOverview = {
   };
 };
 
-const RETRYABLE = new Set([408, 425, 429, 500, 502, 503, 504]);
+const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
 export const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
 
 function wait(ms: number) {
@@ -176,7 +176,7 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   if (token) headers.set('authorization', 'Bearer ' + token);
   try {
     const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers, cache: 'no-store' });
-    if (RETRYABLE.has(response.status) && attempt < 2) {
+    if (RETRYABLE_STATUS_CODES.has(response.status) && attempt < 2) {
       await wait(200 * (attempt + 1));
       return request<T>(path, options, token, attempt + 1);
     }
