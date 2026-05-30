@@ -28,8 +28,8 @@ Run `npm test` to compile and execute core API route tests.
 
 ## Docker quick run
 
-1. `docker build -t drive-api .`
-2. `docker run --rm -p 8080:8080 --env-file .env drive-api`
+1. `docker build -t drive .`
+2. `docker run --rm -p 8080:8080 --env-file .env drive`
 
 ## Docker Compose stack
 

@@ -53,6 +53,8 @@ Example environment files:
 
 Use GitHub Environments to store real secrets for staging and production. The deploy workflow expects environment approvals and secrets to be configured in GitHub rather than committed to the repository.
 
+Before using manual production promotion, configure the `production` GitHub Environment with required reviewers so `workflow_dispatch` runs cannot publish to production without approval.
+
 ## Release workflow
 
 Release Please opens or updates a release PR from commits merged into `main`. Once merged, it updates package versions and changelogs for:
@@ -65,6 +67,12 @@ Release Please opens or updates a release PR from commits merged into `main`. On
 - Re-deploy the previous GHCR image tag for the target environment
 - Re-run the `Deploy` workflow with a known-good release branch or commit
 - For mobile, rebuild the previous release through Codemagic/EAS
+
+## Security and audit policy
+
+- CI enforces `npm audit --audit-level=high` for the backend and mobile dependencies
+- Moderate advisories remain visible in local `npm audit` output, but do not block the pipeline
+- If a high-severity advisory must be accepted temporarily, document the mitigation in the PR and pin or override the affected dependency in the same change
 
 ## Branch protection recommendations
 

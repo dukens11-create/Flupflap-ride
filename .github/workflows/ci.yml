@@ -55,6 +55,9 @@ jobs:
         run: node --test dist/*.test.js
 
       - name: Audit backend dependencies
+        # Keep this as a hard gate for new high/critical advisories. If a high
+        # severity issue is accepted temporarily, document the mitigation in the
+        # PR and pin/override the dependency in the same change.
         run: npm audit --audit-level=high
 
   mobile:
@@ -101,6 +104,9 @@ jobs:
           path: mobile/dist
 
       - name: Audit mobile dependencies
+        # Keep this as a hard gate for new high/critical advisories. If a high
+        # severity issue is accepted temporarily, document the mitigation in the
+        # PR and pin/override the dependency in the same change.
         run: npm audit --audit-level=high
 
   optional-app-builds:

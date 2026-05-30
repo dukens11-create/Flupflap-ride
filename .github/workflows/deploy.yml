@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Deployment environment
+        description: Deployment environment (configure required reviewers on the `production` GitHub Environment before manual production runs)
         required: true
         type: choice
         options:
@@ -54,6 +54,8 @@ jobs:
   backend:
     needs: resolve-environment
     runs-on: ubuntu-latest
+    # Production approval is enforced by configuring required reviewers on the
+    # `production` GitHub Environment in repository settings.
     environment: ${{ needs.resolve-environment.outputs.environment }}
     env:
       DEPLOY_ENV: ${{ needs.resolve-environment.outputs.environment }}
