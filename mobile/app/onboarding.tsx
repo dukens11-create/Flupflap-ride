@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { PLACEHOLDER_DRIVER_DOCUMENTS, REQUIRED_DRIVER_DOCUMENTS } from '../src/constants/onboarding';
 import { kycApi } from '../src/services/api/kycApi';
+import { useAccessibilitySettings } from '../src/context/AccessibilityContext';
 import { useAuth } from '../src/context/AuthContext';
 import { useLocale } from '../src/context/LocaleContext';
 import { useScreenTracking } from '../src/hooks/useScreenTracking';
@@ -20,6 +21,7 @@ const VERIFICATION_CHECKLIST = ['Government ID and driver profile review', 'Driv
 
 export default function OnboardingScreen() {
   const { state, session, onboardingProfile, onboardingStep, completeApplication, submitDocuments, refreshOnboarding, errorMessage, isOnboardingLoading } = useAuth();
+  const { maxFontSizeMultiplier } = useAccessibilitySettings();
   const { t } = useLocale();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
@@ -98,8 +100,8 @@ export default function OnboardingScreen() {
 
   return (
     <ScrollView className="flex-1 bg-zinc-950" contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 64 }}>
-      <Text className="text-3xl font-bold text-zinc-100">{t('onboarding.title')}</Text>
-      <Text className="mt-2 text-sm text-zinc-400">{t('onboarding.subtitle')}</Text>
+      <Text className="text-3xl font-bold text-zinc-100" accessibilityRole="header" maxFontSizeMultiplier={maxFontSizeMultiplier}>{t('onboarding.title')}</Text>
+      <Text className="mt-2 text-sm text-zinc-400" maxFontSizeMultiplier={maxFontSizeMultiplier}>{t('onboarding.subtitle')}</Text>
 
       <View className="mt-6 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-4">
         <Text className="text-sm font-semibold text-emerald-300">What happens before your first trip</Text>
@@ -150,10 +152,10 @@ export default function OnboardingScreen() {
       ) : null}
 
       {onboardingStep === 'application' ? (
-        <ActionButton title={t('onboarding.submitApplication')} loading={isSubmitting} loadingLabel={t('onboarding.working')} onPress={handleApply} />
+        <ActionButton title={t('onboarding.submitApplication')} loading={isSubmitting} loadingLabel={t('onboarding.working')} onPress={handleApply} maxFontSizeMultiplier={maxFontSizeMultiplier} />
       ) : null}
       {onboardingStep === 'documents' ? (
-        <ActionButton title={t('onboarding.uploadDocuments')} loading={isSubmitting} loadingLabel={t('onboarding.working')} onPress={handleUploadDocuments} />
+        <ActionButton title={t('onboarding.uploadDocuments')} loading={isSubmitting} loadingLabel={t('onboarding.working')} onPress={handleUploadDocuments} maxFontSizeMultiplier={maxFontSizeMultiplier} />
       ) : null}
       {onboardingStep === 'kyc' ? (
         <ActionButton
@@ -161,6 +163,7 @@ export default function OnboardingScreen() {
           loading={isSubmitting || isOnboardingLoading}
           loadingLabel={t('onboarding.working')}
           onPress={handleRefreshKycStatus}
+          maxFontSizeMultiplier={maxFontSizeMultiplier}
         />
       ) : null}
 
@@ -178,8 +181,20 @@ const StepRow = ({ title, value, description, active }: { title: string; value: 
   </View>
 );
 
-const ActionButton = ({ title, loading, loadingLabel, onPress }: { title: string; loading: boolean; loadingLabel: string; onPress: () => void }) => (
-  <Pressable className="mt-6 rounded-2xl bg-emerald-500 px-4 py-3" disabled={loading} onPress={onPress}>
-    <Text className="text-center font-semibold text-white">{loading ? loadingLabel : title}</Text>
+const ActionButton = ({
+  title,
+  loading,
+  loadingLabel,
+  onPress,
+  maxFontSizeMultiplier,
+}: {
+  title: string;
+  loading: boolean;
+  loadingLabel: string;
+  onPress: () => void;
+  maxFontSizeMultiplier: number;
+}) => (
+  <Pressable className="mt-6 rounded-2xl bg-emerald-500 px-4 py-3" disabled={loading} onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
+    <Text className="text-center font-semibold text-white" maxFontSizeMultiplier={maxFontSizeMultiplier}>{loading ? loadingLabel : title}</Text>
   </Pressable>
 );

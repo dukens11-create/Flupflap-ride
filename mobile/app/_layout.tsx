@@ -7,6 +7,7 @@ import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View } from 'react-native';
 
+import { AccessibilityProvider } from '../src/context/AccessibilityContext';
 import { AuthProvider } from '../src/context/AuthContext';
 import { DriveRealtimeProvider } from '../src/context/DriveRealtimeContext';
 import { LocaleProvider, useLocale } from '../src/context/LocaleContext';
@@ -58,9 +59,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <LocaleProvider>
         <AuthProvider>
-          <DriveRealtimeProvider>
-            <AppNavigator />
-          </DriveRealtimeProvider>
+          <AccessibilityProvider>
+            <DriveRealtimeProvider>
+              <AppNavigator />
+            </DriveRealtimeProvider>
+          </AccessibilityProvider>
         </AuthProvider>
       </LocaleProvider>
     </GestureHandlerRootView>

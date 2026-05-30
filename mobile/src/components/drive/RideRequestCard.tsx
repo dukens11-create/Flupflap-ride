@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 
+import { useAccessibilitySettings } from '../../context/AccessibilityContext';
 import { useDriveRealtime } from '../../context/DriveRealtimeContext';
 import { useLocale } from '../../context/LocaleContext';
 import { driverStatusMeta, tripStatusOrder, tripStepLabels } from '../../utils/driveStatus';
@@ -8,6 +9,7 @@ const COLOR_STEP_INACTIVE = '#E4E4E7'; // zinc-200
 
 export const RideRequestCard = () => {
   const { activeRequest, activeTrip, requestTimeLeft, acceptRequest, declineRequest, advanceTrip } = useDriveRealtime();
+  const { highContrastEnabled, maxFontSizeMultiplier } = useAccessibilitySettings();
   const { formatCurrency, formatNumber, formatTime } = useLocale();
 
   if (!activeRequest && !activeTrip) {
@@ -24,7 +26,7 @@ export const RideRequestCard = () => {
     const latestUpdates = activeTrip.timeline.slice(-3).reverse();
 
     return (
-      <View className="absolute bottom-72 left-4 right-4 z-30 rounded-[28px] bg-white p-5 shadow-soft dark:bg-zinc-900">
+      <View className={`absolute bottom-72 left-4 right-4 z-30 rounded-[28px] p-5 shadow-soft ${highContrastEnabled ? 'border border-white bg-black' : 'bg-white dark:bg-zinc-900'}`}>
         {/* Status badge + rider info */}
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1">
@@ -33,9 +35,9 @@ export const RideRequestCard = () => {
                 {statusMeta.label}
               </Text>
             </View>
-            <Text className="mt-3 text-xl font-semibold text-zinc-950 dark:text-zinc-100">{activeTrip.riderName}</Text>
-            <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{activeTrip.pickupAddress}</Text>
-            <Text className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">Drop-off · {activeTrip.dropoffAddress}</Text>
+            <Text className={`mt-3 text-xl font-semibold ${highContrastEnabled ? 'text-white' : 'text-zinc-950 dark:text-zinc-100'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>{activeTrip.riderName}</Text>
+            <Text className={`mt-1 text-sm ${highContrastEnabled ? 'text-white' : 'text-zinc-600 dark:text-zinc-300'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>{activeTrip.pickupAddress}</Text>
+            <Text className={`mt-0.5 text-sm ${highContrastEnabled ? 'text-white' : 'text-zinc-600 dark:text-zinc-300'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>Drop-off · {activeTrip.dropoffAddress}</Text>
           </View>
           <View className="items-end">
             <Text className="text-base font-bold text-emerald-600">{formatCurrency(activeTrip.estimatedFare)}</Text>
@@ -105,7 +107,7 @@ export const RideRequestCard = () => {
           accessibilityRole="button"
           accessibilityLabel={statusMeta.actionLabel}
         >
-          <Text className="text-center text-base font-bold text-white">{statusMeta.actionLabel}</Text>
+          <Text className="text-center text-base font-bold text-white" maxFontSizeMultiplier={maxFontSizeMultiplier}>{statusMeta.actionLabel}</Text>
         </Pressable>
       </View>
     );
@@ -115,15 +117,15 @@ export const RideRequestCard = () => {
   const urgentSeconds = requestTimeLeft <= 5;
 
   return (
-    <View className="absolute bottom-72 left-4 right-4 z-30 rounded-[28px] bg-white p-5 shadow-soft dark:bg-zinc-900">
+    <View className={`absolute bottom-72 left-4 right-4 z-30 rounded-[28px] p-5 shadow-soft ${highContrastEnabled ? 'border border-white bg-black' : 'bg-white dark:bg-zinc-900'}`}>
       {/* Header: rider + countdown */}
       <View className="flex-row items-start justify-between gap-3">
         <View className="flex-1">
           <View className="self-start rounded-full bg-rose-100 px-3 py-1 dark:bg-rose-900/40">
             <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-500 dark:text-rose-300">New request</Text>
           </View>
-          <Text className="mt-3 text-base font-semibold text-zinc-950 dark:text-zinc-100">{request.riderName}</Text>
-          <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+          <Text className={`mt-3 text-base font-semibold ${highContrastEnabled ? 'text-white' : 'text-zinc-950 dark:text-zinc-100'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>{request.riderName}</Text>
+          <Text className={`mt-1 text-sm ${highContrastEnabled ? 'text-white' : 'text-zinc-600 dark:text-zinc-300'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>
             {request.rideType.toUpperCase()} · Pickup ETA {formatNumber(request.pickupEtaMinutes)} min · Trip payout {formatCurrency(request.estimatedFare)}
           </Text>
           <Text className="mt-2 text-xs uppercase tracking-[0.18em] text-zinc-400">Pickup</Text>
@@ -159,21 +161,11 @@ export const RideRequestCard = () => {
         <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">Declining keeps you online so the next nearby request can appear right away.</Text>
       </View>
       <View className="mt-4 flex-row gap-3">
-        <Pressable
-          className="flex-1 rounded-2xl bg-zinc-200 px-4 py-3 dark:bg-zinc-800"
-          onPress={declineRequest}
-          accessibilityRole="button"
-          accessibilityLabel="Decline request"
-        >
-          <Text className="text-center font-semibold text-zinc-800 dark:text-zinc-100">Decline</Text>
+        <Pressable className={`flex-1 rounded-2xl px-4 py-3 ${highContrastEnabled ? 'border border-white bg-black' : 'bg-zinc-200 dark:bg-zinc-800'}`} onPress={declineRequest} accessibilityRole="button" accessibilityLabel="Decline ride request">
+          <Text className={`text-center font-semibold ${highContrastEnabled ? 'text-white' : 'text-zinc-800 dark:text-zinc-100'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>Decline</Text>
         </Pressable>
-        <Pressable
-          className="flex-[2] rounded-2xl bg-emerald-500 px-4 py-3"
-          onPress={acceptRequest}
-          accessibilityRole="button"
-          accessibilityLabel="Accept request"
-        >
-          <Text className="text-center text-base font-bold text-white">Accept</Text>
+        <Pressable className="flex-[2] rounded-2xl bg-emerald-500 px-4 py-3" onPress={acceptRequest} accessibilityRole="button" accessibilityLabel="Accept ride request">
+          <Text className="text-center text-base font-bold text-white" maxFontSizeMultiplier={maxFontSizeMultiplier}>Accept</Text>
         </Pressable>
       </View>
     </View>

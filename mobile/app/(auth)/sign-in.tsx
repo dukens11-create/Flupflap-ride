@@ -2,6 +2,7 @@ import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
+import { useAccessibilitySettings } from '../../src/context/AccessibilityContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { useLocale } from '../../src/context/LocaleContext';
 import { useScreenTracking } from '../../src/hooks/useScreenTracking';
@@ -14,8 +15,9 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { signIn } = useAuth();
-  useScreenTracking('sign_in');
+  const { maxFontSizeMultiplier } = useAccessibilitySettings();
   const { t } = useLocale();
+  useScreenTracking('sign_in');
   const canSubmit = email.trim().length > 0 && password.length > 0 && !isSubmitting;
 
   const handleSubmit = async () => {
@@ -39,8 +41,8 @@ export default function SignInScreen() {
 
   return (
     <ScrollView className="flex-1 bg-zinc-950" contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 }}>
-    <Text className="text-3xl font-bold text-zinc-100">{t('auth.signInTitle')}</Text>
-    <Text className="mt-2 text-sm text-zinc-400">{t('auth.signInSubtitle')}</Text>
+      <Text className="text-3xl font-bold text-zinc-100" accessibilityRole="header" maxFontSizeMultiplier={maxFontSizeMultiplier}>{t('auth.signInTitle')}</Text>
+      <Text className="mt-2 text-sm text-zinc-400" maxFontSizeMultiplier={maxFontSizeMultiplier}>{t('auth.signInSubtitle')}</Text>
 
       <View className="mt-6 rounded-3xl bg-zinc-900 p-4">
         <Text className="text-sm font-semibold text-zinc-100">Returning drivers can:</Text>
@@ -57,6 +59,9 @@ export default function SignInScreen() {
         autoCapitalize="none"
         className="mt-6 rounded-2xl bg-zinc-900 px-4 py-3 text-zinc-100"
         placeholderTextColor="#71717A"
+        accessibilityLabel="Email address"
+        textContentType="emailAddress"
+        maxFontSizeMultiplier={maxFontSizeMultiplier}
       />
       <TextInput
         value={password}
@@ -65,6 +70,9 @@ export default function SignInScreen() {
         secureTextEntry
         className="mt-3 rounded-2xl bg-zinc-900 px-4 py-3 text-zinc-100"
         placeholderTextColor="#71717A"
+        accessibilityLabel="Password"
+        textContentType="password"
+        maxFontSizeMultiplier={maxFontSizeMultiplier}
       />
 
       {error ? <Text className="mt-3 text-sm text-rose-400">{error}</Text> : null}
@@ -73,13 +81,15 @@ export default function SignInScreen() {
         className={`mt-5 rounded-2xl px-4 py-3 ${canSubmit ? 'bg-emerald-500' : 'bg-zinc-800'}`}
         disabled={!canSubmit}
         onPress={handleSubmit}
+        accessibilityRole="button"
+        accessibilityLabel="Sign in"
       >
-        <Text className="text-center font-semibold text-white">{isSubmitting ? t('auth.signingIn') : t('auth.signInButton')}</Text>
+        <Text className="text-center font-semibold text-white" maxFontSizeMultiplier={maxFontSizeMultiplier}>{isSubmitting ? t('auth.signingIn') : t('auth.signInButton')}</Text>
       </Pressable>
 
       <Link href="/(auth)/sign-up" asChild>
-        <Pressable className="mt-4">
-          <Text className="text-center text-sm text-zinc-300">{t('auth.needAccount')}</Text>
+        <Pressable className="mt-4" accessibilityRole="button" accessibilityLabel="Create a new account">
+          <Text className="text-center text-sm text-zinc-300" maxFontSizeMultiplier={maxFontSizeMultiplier}>{t('auth.needAccount')}</Text>
         </Pressable>
       </Link>
     </ScrollView>
