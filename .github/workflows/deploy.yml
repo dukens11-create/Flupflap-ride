@@ -47,7 +47,7 @@ jobs:
             environment="staging"
           fi
 
-          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
           echo "environment=$environment" >> "$GITHUB_OUTPUT"
           echo "image_tag=$environment-$short_sha" >> "$GITHUB_OUTPUT"
 
