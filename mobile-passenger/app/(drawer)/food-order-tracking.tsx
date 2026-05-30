@@ -23,7 +23,7 @@ const ORDER_STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
   { status: 'delivered', label: 'Delivered!', emoji: '🎉' },
 ];
 
-// Simulated status progression: one step every ~4 seconds for demo purposes.
+// Simulated status progression: one step every 4 seconds for demo purposes.
 const STATUS_SEQUENCE: OrderStatus[] = ['placed', 'confirmed', 'preparing', 'ready', 'picked_up', 'on_the_way', 'delivered'];
 
 export default function FoodOrderTrackingScreen() {

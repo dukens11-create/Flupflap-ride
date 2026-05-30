@@ -35,6 +35,8 @@ export default function FoodRestaurantDetailScreen() {
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
 
   const addToCart = (itemId: string) => {
+    // NOTE: In production, cart mutations would go through a shared Zustand slice
+    // so the cart total is consistent across all screens (detail, cart, checkout).
     setCart((prev) => ({ ...prev, [itemId]: (prev[itemId] ?? 0) + 1 }));
   };
 

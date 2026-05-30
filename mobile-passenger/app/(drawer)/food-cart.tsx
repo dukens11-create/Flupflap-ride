@@ -13,7 +13,8 @@ type CartItem = {
 };
 
 // Minimal sample cart state shared via module scope for demonstration.
-// In a production app this would live in a shared store (e.g. Zustand slice).
+// In a production app this would live in a shared Zustand store slice so that
+// items added on the restaurant-detail screen are visible here without prop drilling.
 const DEMO_CART: CartItem[] = [
   { id: 'm1', name: 'Margherita', price: 12.99, qty: 1 },
   { id: 'm5', name: 'Garlic Bread', price: 4.99, qty: 2 },
