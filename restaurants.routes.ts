@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as controller from './restaurants.controller';
-import { requireAuth, requireRole } from './auth.middleware';
-import { validateBody } from './validate';
+import { requireAuth, requireRole } from './src/middleware/auth.middleware';
+import { validateBody } from './src/utils/validate';
 import {
   foodOrderSchema,
   genericPassthroughSchema,
