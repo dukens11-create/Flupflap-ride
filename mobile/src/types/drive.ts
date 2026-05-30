@@ -1,9 +1,10 @@
-export type DriverStatus = 'offline' | 'waiting' | 'accepted' | 'arriving' | 'picked-up' | 'in-progress' | 'completed';
+export type DriverStatus = 'offline' | 'onboarding' | 'waiting' | 'accepted' | 'in-progress' | 'completed';
 
 export type DriverProfile = {
   id: string;
   name: string;
-  avatarUrl: string;
+  email?: string;
+  avatarUrl?: string;
   vehicleStatus: 'good' | 'service-soon';
   isOnline: boolean;
   status: DriverStatus;
@@ -13,6 +14,7 @@ export type DriverMetrics = {
   earningsToday: number;
   tripsCompleted: number;
   hoursOnline: number;
+  completedTrips: number;
 };
 
 export type LatLng = {
@@ -44,7 +46,9 @@ export type RideRequest = {
 };
 
 export type ActiveTrip = Omit<RideRequest, 'expiresAt'> & {
-  status: Exclude<DriverStatus, 'offline' | 'waiting'>;
+  status: Extract<DriverStatus, 'accepted' | 'in-progress' | 'completed'>;
+  rideId: string;
+  timeline: Array<{ id: string; title: string; message: string; createdAt: string }>;
 };
 
 export type RideHistoryItem = {
