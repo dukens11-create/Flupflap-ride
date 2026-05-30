@@ -34,6 +34,8 @@ const DriveRealtimeContext = createContext<DriveContextValue | undefined>(undefi
 
 const HOURS_INCREMENT_PER_TICK = 0.01;
 const DATA_REFRESH_INTERVAL_MS = 6000;
+const LOCATION_SEND_INTERVAL_MS = 3000;
+const LOCATION_SEND_DISTANCE_METERS = 8;
 
 const defaultProfile: DriverProfile = {
   id: 'driver',
@@ -114,9 +116,24 @@ const toErrorMessage = (error: unknown) => {
   return 'Something went wrong while syncing drive data.';
 };
 
+const distanceMetersBetween = (start: LatLng, end: LatLng) => {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadius = 6371000;
+  const dLat = toRadians(end.latitude - start.latitude);
+  const dLng = toRadians(end.longitude - start.longitude);
+  const lat1 = toRadians(start.latitude);
+  const lat2 = toRadians(end.latitude);
+
+  const haversine =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
+  return earthRadius * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+};
+
 export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode }) => {
   const { state, session, onboardingStep } = useAuth();
   const refreshInFlightRef = useRef(false);
+  const lastLocationPushRef = useRef<LatLng | null>(null);
+  const lastLocationPushAtRef = useRef(0);
   const [profile, setProfile] = useState<DriverProfile>(defaultProfile);
   const [metrics, setMetrics] = useState<DriverMetrics>(defaultMetrics);
   const [location, setLocation] = useState<LatLng>(getSeedLocation());
@@ -231,13 +248,37 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
         return;
       }
 
+      try {
+        const initialFix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+        setLocation({ latitude: initialFix.coords.latitude, longitude: initialFix.coords.longitude });
+      } catch {
+        // Keep seeded location fallback if a one-off high-accuracy fix is unavailable.
+      }
+
       watcher = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, timeInterval: 4000, distanceInterval: 8 },
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 2000,
+          distanceInterval: 2,
+          mayShowUserSettingsDialog: true,
+        },
         (update) => {
+          if (typeof update.coords.accuracy === 'number' && update.coords.accuracy > 90) {
+            return;
+          }
           const nextLocation = { latitude: update.coords.latitude, longitude: update.coords.longitude };
           setLocation(nextLocation);
           if (state === 'signed_in' && profile.isOnline) {
-            void driversApi.updateLocation(nextLocation.latitude, nextLocation.longitude);
+            const now = Date.now();
+            const distanceFromLastPush = lastLocationPushRef.current
+              ? distanceMetersBetween(lastLocationPushRef.current, nextLocation)
+              : Number.POSITIVE_INFINITY;
+            const elapsed = now - lastLocationPushAtRef.current;
+            if (distanceFromLastPush >= LOCATION_SEND_DISTANCE_METERS || elapsed >= LOCATION_SEND_INTERVAL_MS) {
+              lastLocationPushRef.current = nextLocation;
+              lastLocationPushAtRef.current = now;
+              void driversApi.updateLocation(nextLocation.latitude, nextLocation.longitude);
+            }
           }
         }
       );
