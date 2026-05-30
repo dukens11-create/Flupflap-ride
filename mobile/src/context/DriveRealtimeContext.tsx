@@ -10,6 +10,7 @@ import { buildIncomingRideRequests, buildNearbyRequests, getSeedLocation } from 
 import { ridesApi } from '../services/api/ridesApi';
 import type { RideEvent, RideSummary } from '../types/api';
 import type { ActiveTrip, DriverMetrics, DriverProfile, LatLng, RideHistoryItem, RideRequest } from '../types/drive';
+import { distanceKmBetween } from '../utils/navigation';
 
 type DriveContextValue = {
   profile: DriverProfile;
@@ -45,11 +46,14 @@ const DriveRealtimeContext = createContext<DriveContextValue | undefined>(undefi
 
 const HOURS_INCREMENT_PER_TICK = 0.01;
 const DATA_REFRESH_INTERVAL_MS = 6000;
+const LOCATION_SEND_INTERVAL_MS = 3000;
+const LOCATION_SEND_DISTANCE_METERS = 8;
+const MAX_LOCATION_ACCURACY_METERS = 90;
 const REQUEST_RESPONSE_WINDOW_MS = 30_000;
 const REQUEST_EXPIRATION_SECONDS = 18;
 const MOCK_REQUEST_PREFIX = 'mock-request-';
-const LOCATION_UPDATE_INTERVAL_MS = 4000;
-const LOCATION_UPDATE_DISTANCE_METERS = 8;
+const LOCATION_UPDATE_INTERVAL_MS = 2000;
+const LOCATION_UPDATE_DISTANCE_METERS = 2;
 type PendingRideRequest = Omit<RideRequest, 'expiresAt'>;
 
 type DriverNotification = {
@@ -124,6 +128,8 @@ const mapRideToHistory = (ride: RideSummary): RideHistoryItem => ({
   route: `${formatCoordinate(ride.pickupLat, ride.pickupLng)} → ${formatCoordinate(ride.dropoffLat, ride.dropoffLng)}`,
   fare: Number(ride.fareEstimate.toFixed(2)),
   timeLabel: new Date(ride.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+  miles: Number(ride.miles.toFixed(1)),
+  date: new Date(ride.updatedAt).toLocaleDateString(),
 });
 
 const mapRideToRequest = (ride: RideSummary): RideRequest => {
@@ -221,6 +227,8 @@ const toErrorMessage = (error: unknown) => {
 export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode }) => {
   const { state, session, onboardingStep } = useAuth();
   const refreshInFlightRef = useRef(false);
+  const lastLocationPushRef = useRef<LatLng | null>(null);
+  const lastLocationPushAtRef = useRef(0);
   const handledRequestIdsRef = useRef(new Set<string>());
   const previousTripRef = useRef<{ rideId: string; status: ActiveTrip['status'] } | null>(null);
   const lastIncomingRequestIdRef = useRef<string | null>(null);
@@ -381,17 +389,38 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
         return;
       }
 
+      try {
+        const initialFix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+        setLocation({ latitude: initialFix.coords.latitude, longitude: initialFix.coords.longitude });
+      } catch (initialFixError) {
+        // Keep seeded location fallback if a one-off high-accuracy fix is unavailable.
+        console.warn('Initial high-accuracy location fix unavailable', initialFixError);
+      }
+
       watcher = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.Balanced,
+          accuracy: Location.Accuracy.BestForNavigation,
           timeInterval: LOCATION_UPDATE_INTERVAL_MS,
           distanceInterval: LOCATION_UPDATE_DISTANCE_METERS,
+          mayShowUserSettingsDialog: true,
         },
         (update) => {
+          if (typeof update.coords.accuracy === 'number' && update.coords.accuracy > MAX_LOCATION_ACCURACY_METERS) {
+            return;
+          }
           const nextLocation = { latitude: update.coords.latitude, longitude: update.coords.longitude };
           setLocation(nextLocation);
           if (state === 'signed_in' && profile.isOnline) {
-            void driversApi.updateLocation(nextLocation.latitude, nextLocation.longitude);
+            const now = Date.now();
+            const distanceFromLastPush = lastLocationPushRef.current
+              ? distanceKmBetween(lastLocationPushRef.current, nextLocation) * 1000
+              : Number.POSITIVE_INFINITY;
+            const elapsed = now - lastLocationPushAtRef.current;
+            if (distanceFromLastPush >= LOCATION_SEND_DISTANCE_METERS || elapsed >= LOCATION_SEND_INTERVAL_MS) {
+              lastLocationPushRef.current = nextLocation;
+              lastLocationPushAtRef.current = now;
+              void driversApi.updateLocation(nextLocation.latitude, nextLocation.longitude);
+            }
           }
         }
       );
