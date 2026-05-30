@@ -10,6 +10,7 @@ import { useLocale } from '../../src/context/LocaleContext';
 const iconByRoute: Record<string, keyof typeof Ionicons.glyphMap> = {
   index: 'home',
   trips: 'car',
+  'food-delivery': 'restaurant',
   earnings: 'cash',
   inbox: 'mail',
   profile: 'person',
@@ -51,6 +52,7 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: t('common.home'), tabBarAccessibilityLabel: `${t('common.home')} tab` }} />
       <Tabs.Screen name="trips" options={{ title: t('common.trips'), tabBarAccessibilityLabel: `${t('common.trips')} tab` }} />
+      <Tabs.Screen name="food-delivery" options={{ title: 'Deliver', tabBarAccessibilityLabel: 'Food Delivery tab' }} />
       <Tabs.Screen name="earnings" options={{ title: t('common.earnings'), tabBarAccessibilityLabel: `${t('common.earnings')} tab` }} />
       <Tabs.Screen name="inbox" options={{ title: t('common.inbox'), tabBarAccessibilityLabel: `${t('common.inbox')} tab` }} />
       <Tabs.Screen name="profile" options={{ title: t('common.profile'), tabBarAccessibilityLabel: `${t('common.profile')} tab` }} />

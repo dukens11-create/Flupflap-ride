@@ -2,7 +2,7 @@ export type UserRole = 'rider' | 'driver' | 'merchant' | 'admin';
 export type ThemeMode = 'dark' | 'light';
 export type TextScale = 'sm' | 'md' | 'lg';
 export type LocaleCode = 'en' | 'es' | 'fr';
-export type PortalSection = 'home' | 'auth' | 'book' | 'liveRide' | 'history' | 'rideDetail' | 'wallet' | 'promotions' | 'support' | 'account' | 'scheduled';
+export type PortalSection = 'home' | 'auth' | 'book' | 'liveRide' | 'history' | 'rideDetail' | 'wallet' | 'promotions' | 'support' | 'account' | 'scheduled' | 'food';
 
 export type AuthUser = {
   id: string;

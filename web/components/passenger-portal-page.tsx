@@ -20,6 +20,7 @@ const navItems: Array<{ href: string; label: string; section: PortalSection }> =
   { href: '/ride/live', label: 'Live Ride', section: 'liveRide' },
   { href: '/history', label: 'History', section: 'history' },
   { href: '/scheduled', label: 'Scheduled', section: 'scheduled' },
+  { href: '/food', label: '🍔 Food Delivery', section: 'food' },
   { href: '/wallet', label: 'Wallet', section: 'wallet' },
   { href: '/promotions', label: 'Promotions', section: 'promotions' },
   { href: '/support', label: 'Support', section: 'support' },
@@ -61,6 +62,10 @@ export function PassengerPortalPage({ section, rideId }: { section: PortalSectio
   const [review, setReview] = useState('');
   const [contactForm, setContactForm] = useState({ email: session?.user.email || 'rider@example.com', phone: session?.user.phone || '+1 (415) 555-0110', fullName: 'Drive Passenger' });
   const [authForm, setAuthForm] = useState({ email: session?.user.email || 'rider@example.com', phone: '', password: 'password123' });
+  const [foodRestaurants, setFoodRestaurants] = useState<Array<{ id: string; name: string; cuisineTypes: string[]; rating: number; estimatedDeliveryMinutes: number; deliveryFeeCents: number; isOpen: boolean }>>([]);
+  const [foodSearchQuery, setFoodSearchQuery] = useState('');
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
+  const [foodOrders, setFoodOrders] = useState<Array<{ id: string; restaurantName: string; status: string; totalCents: number; createdAt: string }>>([]);
 
   useEffect(() => {
     if (!session || !apiReady) {
@@ -548,6 +553,156 @@ export function PassengerPortalPage({ section, rideId }: { section: PortalSectio
           <SectionTitle eyebrow="Favorites" title="Favorite destinations and saved trips" description="Quick-book common routes and keep frequently used pickups and drop-offs one tap away." />
           {savedTrips.map((trip) => <div key={trip.id} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"><p className="font-semibold text-white">{trip.label}</p><p className="text-sm text-slate-300">{trip.from} → {trip.to}</p></div>)}
           <Button onClick={() => setBanner('Favorite destination pinned to your home screen.')}>Pin favorite</Button>
+        </Card>
+      </div>
+    ),
+    food: (
+      <div className="space-y-6">
+        <SectionTitle eyebrow="Food Delivery" title="Order food from local restaurants" description="Browse nearby restaurants, explore menus, and get food delivered straight to your door. Track your order in real time." />
+        <Card className="space-y-4">
+          <SectionTitle eyebrow="Discover" title="Find restaurants" description="Search by cuisine, restaurant name, or dish." />
+          <div className="flex flex-wrap gap-3">
+            <Input value={foodSearchQuery} onChange={e => setFoodSearchQuery(e.target.value)} placeholder="Search restaurants or cuisines..." />
+            <Button onClick={() => {
+              if (apiReady && session) {
+                void fetch(`${apiBaseUrl}/api/restaurants/search?q=${encodeURIComponent(foodSearchQuery)}`)
+                  .then(r => r.json())
+                  .then((data: any) => { if (data.ok) setFoodRestaurants(data.restaurants); })
+                  .catch(() => undefined);
+              } else {
+                setFoodRestaurants([
+                  { id: 'demo-1', name: 'The Burger Spot', cuisineTypes: ['burgers', 'american'], rating: 4.7, estimatedDeliveryMinutes: 25, deliveryFeeCents: 199, isOpen: true },
+                  { id: 'demo-2', name: 'Pizza Palace', cuisineTypes: ['pizza', 'italian'], rating: 4.5, estimatedDeliveryMinutes: 35, deliveryFeeCents: 249, isOpen: true },
+                  { id: 'demo-3', name: 'Sushi House', cuisineTypes: ['sushi', 'japanese'], rating: 4.8, estimatedDeliveryMinutes: 40, deliveryFeeCents: 299, isOpen: false },
+                  { id: 'demo-4', name: 'Taco Town', cuisineTypes: ['tacos', 'mexican'], rating: 4.3, estimatedDeliveryMinutes: 20, deliveryFeeCents: 149, isOpen: true },
+                ]);
+              }
+            }}>Search</Button>
+            <Button tone="secondary" onClick={() => {
+              setFoodRestaurants([
+                { id: 'demo-1', name: 'The Burger Spot', cuisineTypes: ['burgers', 'american'], rating: 4.7, estimatedDeliveryMinutes: 25, deliveryFeeCents: 199, isOpen: true },
+                { id: 'demo-2', name: 'Pizza Palace', cuisineTypes: ['pizza', 'italian'], rating: 4.5, estimatedDeliveryMinutes: 35, deliveryFeeCents: 249, isOpen: true },
+                { id: 'demo-3', name: 'Sushi House', cuisineTypes: ['sushi', 'japanese'], rating: 4.8, estimatedDeliveryMinutes: 40, deliveryFeeCents: 299, isOpen: false },
+                { id: 'demo-4', name: 'Taco Town', cuisineTypes: ['tacos', 'mexican'], rating: 4.3, estimatedDeliveryMinutes: 20, deliveryFeeCents: 149, isOpen: true },
+              ]);
+            }}>Show All</Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {['🍔 Burgers', '🍕 Pizza', '🍣 Sushi', '🌮 Mexican', '🍜 Asian', '🥗 Healthy', '☕ Cafe'].map(tag => (
+              <button key={tag} onClick={() => setFoodSearchQuery(tag.split(' ')[1]?.toLowerCase() || '')} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200 hover:bg-white/10 transition">
+                {tag}
+              </button>
+            ))}
+          </div>
+          {foodRestaurants.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {foodRestaurants.map(r => (
+                <div key={r.id} onClick={() => setSelectedRestaurantId(r.id)} className={`cursor-pointer rounded-2xl border p-4 transition ${selectedRestaurantId === r.id ? 'border-sky-400 bg-sky-400/10' : 'border-white/10 bg-slate-950/40 hover:bg-white/5'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-white">{r.name}</p>
+                      <p className="text-xs text-slate-400 mt-1">{r.cuisineTypes.join(', ')}</p>
+                    </div>
+                    <Pill>{r.isOpen ? '🟢 Open' : '🔴 Closed'}</Pill>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-3 text-sm text-slate-300">
+                    <span>⭐ {r.rating.toFixed(1)}</span>
+                    <span>🚀 {r.estimatedDeliveryMinutes} min</span>
+                    <span>🛵 {currency(r.deliveryFeeCents / 100)} delivery</span>
+                  </div>
+                  {selectedRestaurantId === r.id && (
+                    <Button className="mt-3" onClick={(e) => { e.stopPropagation(); setBanner(`Viewing menu for ${r.name}. Full menu integration available when connected to backend.`); }}>View Menu</Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="space-y-4">
+            <SectionTitle eyebrow="Active Order" title="Track your food delivery" description="Real-time order status and driver location tracking." />
+            <div className="space-y-2">
+              {[
+                { status: 'Order Placed', icon: '📋', done: true, time: '12:30 PM' },
+                { status: 'Confirmed by Restaurant', icon: '✅', done: true, time: '12:32 PM' },
+                { status: 'Being Prepared', icon: '👨‍🍳', done: true, time: '12:35 PM' },
+                { status: 'Ready for Pickup', icon: '📦', done: false, time: '--:--' },
+                { status: 'Driver On the Way', icon: '🛵', done: false, time: '--:--' },
+                { status: 'Delivered', icon: '🏠', done: false, time: '--:--' },
+              ].map(step => (
+                <div key={step.status} className={`flex items-center gap-3 rounded-xl p-3 ${step.done ? 'bg-green-900/30 border border-green-500/20' : 'bg-slate-950/40 border border-white/10'}`}>
+                  <span className="text-xl">{step.icon}</span>
+                  <div className="flex-1">
+                    <p className={`text-sm font-medium ${step.done ? 'text-green-300' : 'text-slate-400'}`}>{step.status}</p>
+                  </div>
+                  <span className="text-xs text-slate-400">{step.time}</span>
+                </div>
+              ))}
+            </div>
+            <Button onClick={() => setBanner('Order tracking updated. Driver is 3 minutes away!')}>Refresh Status</Button>
+          </Card>
+          <Card className="space-y-4">
+            <SectionTitle eyebrow="Order History" title="Past food orders" description="View and reorder your previous food deliveries." />
+            {foodOrders.length === 0 ? (
+              <div className="space-y-3">
+                {[
+                  { id: 'fo-1', restaurantName: 'The Burger Spot', status: 'delivered', totalCents: 2498, createdAt: '2026-05-28T18:30:00Z' },
+                  { id: 'fo-2', restaurantName: 'Pizza Palace', status: 'delivered', totalCents: 3199, createdAt: '2026-05-25T19:15:00Z' },
+                  { id: 'fo-3', restaurantName: 'Sushi House', status: 'canceled', totalCents: 4250, createdAt: '2026-05-20T12:00:00Z' },
+                ].map(order => (
+                  <div key={order.id} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-white">{order.restaurantName}</p>
+                      <Pill>{order.status}</Pill>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-sm text-slate-300">
+                      <span>{currency(order.totalCents / 100)}</span>
+                      <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <Button tone="secondary" className="mt-3" onClick={() => setBanner(`Reordering from ${order.restaurantName}...`)}>Reorder</Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              foodOrders.map(order => (
+                <div key={order.id} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-white">{order.restaurantName}</p>
+                    <Pill>{order.status}</Pill>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-sm text-slate-300">
+                    <span>{currency(order.totalCents / 100)}</span>
+                    <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))
+            )}
+            {session && apiReady && (
+              <Button tone="secondary" onClick={() => {
+                void fetch(`${apiBaseUrl}/api/food-orders/history`, { headers: { authorization: 'Bearer ' + session.accessToken } })
+                  .then(r => r.json())
+                  .then((data: any) => { if (data.ok) setFoodOrders(data.orders); })
+                  .catch(() => undefined);
+              }}>Load My Orders</Button>
+            )}
+          </Card>
+        </div>
+        <Card className="space-y-4">
+          <SectionTitle eyebrow="Promotions" title="Food delivery deals" description="Save on your next order with these exclusive restaurant offers." />
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              { code: 'FIRSTBITE', desc: '50% off your first food order', expires: '2026-06-30' },
+              { code: 'FREEDEL', desc: 'Free delivery on orders over $20', expires: '2026-07-15' },
+              { code: 'LUNCHSAVE', desc: '20% off weekday lunch orders', expires: '2026-12-31' },
+            ].map(promo => (
+              <div key={promo.code} className="rounded-2xl border border-orange-500/20 bg-orange-900/10 p-4">
+                <p className="font-mono text-sm font-bold text-orange-300">{promo.code}</p>
+                <p className="mt-1 text-sm text-slate-300">{promo.desc}</p>
+                <p className="mt-2 text-xs text-slate-400">Expires {promo.expires}</p>
+                <Button tone="secondary" className="mt-3" onClick={() => setBanner(`Promo code ${promo.code} copied!`)}>Copy Code</Button>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
     ),

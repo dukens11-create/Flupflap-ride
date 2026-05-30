@@ -402,6 +402,155 @@ export type TotpEntry = {
   createdAt: string;
 };
 
+// ─── Food Delivery ────────────────────────────────────────────────────────────
+
+export type RestaurantStatus = 'pending' | 'active' | 'suspended' | 'closed';
+
+export type Restaurant = {
+  id: string;
+  ownerId: string;
+  name: string;
+  description?: string;
+  cuisineTypes: string[];
+  address: string;
+  lat?: number;
+  lng?: number;
+  phone?: string;
+  email?: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
+  status: RestaurantStatus;
+  isOpen: boolean;
+  openHours?: Record<string, { open: string; close: string }>;
+  deliveryFeeCents: number;
+  minimumOrderCents: number;
+  estimatedDeliveryMinutes: number;
+  taxRatePercent: number;
+  commissionRatePercent: number;
+  rating: number;
+  ratingCount: number;
+  licenseNumber?: string;
+  healthCertUrl?: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MenuCategory = {
+  id: string;
+  restaurantId: string;
+  name: string;
+  description?: string;
+  sortOrder: number;
+  available: boolean;
+  createdAt: string;
+};
+
+export type MenuItemVariant = {
+  id: string;
+  name: string;
+  priceDeltaCents: number;
+};
+
+export type MenuItem = {
+  id: string;
+  restaurantId: string;
+  categoryId: string;
+  name: string;
+  description?: string;
+  priceCents: number;
+  imageUrl?: string;
+  ingredients?: string[];
+  allergens?: string[];
+  isAvailable: boolean;
+  isPopular: boolean;
+  variants: MenuItemVariant[];
+  rating: number;
+  ratingCount: number;
+  preparationMinutes: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FoodOrderStatus =
+  | 'placed'
+  | 'confirmed'
+  | 'preparing'
+  | 'ready'
+  | 'picked_up'
+  | 'delivered'
+  | 'canceled'
+  | 'refunded';
+
+export type FoodOrderItem = {
+  menuItemId: string;
+  menuItemName: string;
+  quantity: number;
+  unitPriceCents: number;
+  variantId?: string;
+  variantName?: string;
+  variantDeltaCents: number;
+  specialRequest?: string;
+};
+
+export type FoodOrder = {
+  id: string;
+  customerId: string;
+  restaurantId: string;
+  restaurantName: string;
+  driverId?: string;
+  items: FoodOrderItem[];
+  status: FoodOrderStatus;
+  subtotalCents: number;
+  deliveryFeeCents: number;
+  taxCents: number;
+  totalCents: number;
+  deliveryAddress: string;
+  deliveryLat?: number;
+  deliveryLng?: number;
+  specialRequest?: string;
+  paymentMethod?: string;
+  paymentStatus: 'pending' | 'paid' | 'refunded';
+  estimatedDeliveryMinutes?: number;
+  confirmedAt?: string;
+  preparingAt?: string;
+  readyAt?: string;
+  pickedUpAt?: string;
+  deliveredAt?: string;
+  canceledAt?: string;
+  cancellationReason?: string;
+  customerRating?: number;
+  customerReview?: string;
+  ratedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RestaurantReview = {
+  id: string;
+  restaurantId: string;
+  customerId: string;
+  orderId: string;
+  rating: number;
+  review?: string;
+  createdAt: string;
+};
+
+export type RestaurantPromo = {
+  id: string;
+  restaurantId: string;
+  code: string;
+  description: string;
+  discountType: 'flat' | 'percent';
+  discountValue: number;
+  minimumOrderCents: number;
+  maxUsages?: number;
+  usageCount: number;
+  expiresAt?: string;
+  active: boolean;
+  createdAt: string;
+};
+
 // ─── Notification Log ────────────────────────────────────────────────────────
 
 export type NotificationChannel = 'sms' | 'email' | 'push';
@@ -462,6 +611,12 @@ type PersistedStore = {
   fraudAlerts: FraudAlert[];
   totpEntries: Array<[string, TotpEntry]>;
   notificationLogs: NotificationLog[];
+  restaurants: Array<[string, Restaurant]>;
+  menuCategories: Array<[string, MenuCategory]>;
+  menuItems: Array<[string, MenuItem]>;
+  foodOrders: Array<[string, FoodOrder]>;
+  restaurantReviews: RestaurantReview[];
+  restaurantPromos: Array<[string, RestaurantPromo]>;
 };
 
 let isHydrating = false;
@@ -555,7 +710,13 @@ export const store = {
   carpoolRides: new PersistentMap<string, CarpoolRide>(),
   fraudAlerts: createPersistentArray<FraudAlert>(),
   totpEntries: new PersistentMap<string, TotpEntry>(),
-  notificationLogs: createPersistentArray<NotificationLog>()
+  notificationLogs: createPersistentArray<NotificationLog>(),
+  restaurants: new PersistentMap<string, Restaurant>(),
+  menuCategories: new PersistentMap<string, MenuCategory>(),
+  menuItems: new PersistentMap<string, MenuItem>(),
+  foodOrders: new PersistentMap<string, FoodOrder>(),
+  restaurantReviews: createPersistentArray<RestaurantReview>(),
+  restaurantPromos: new PersistentMap<string, RestaurantPromo>()
 };
 
 function toSerializableStore(): PersistedStore {
@@ -590,7 +751,13 @@ function toSerializableStore(): PersistedStore {
     carpoolRides: Array.from(store.carpoolRides.entries()),
     fraudAlerts: [...store.fraudAlerts],
     totpEntries: Array.from(store.totpEntries.entries()),
-    notificationLogs: [...store.notificationLogs]
+    notificationLogs: [...store.notificationLogs],
+    restaurants: Array.from(store.restaurants.entries()),
+    menuCategories: Array.from(store.menuCategories.entries()),
+    menuItems: Array.from(store.menuItems.entries()),
+    foodOrders: Array.from(store.foodOrders.entries()),
+    restaurantReviews: [...store.restaurantReviews],
+    restaurantPromos: Array.from(store.restaurantPromos.entries())
   };
 }
 
@@ -656,6 +823,12 @@ function hydrateStore() {
     for (const alert of parsed.fraudAlerts || []) store.fraudAlerts.push(alert);
     for (const [id, totp] of parsed.totpEntries || []) store.totpEntries.set(id, totp);
     for (const log of parsed.notificationLogs || []) store.notificationLogs.push(log);
+    for (const [id, restaurant] of parsed.restaurants || []) store.restaurants.set(id, restaurant);
+    for (const [id, category] of parsed.menuCategories || []) store.menuCategories.set(id, category);
+    for (const [id, item] of parsed.menuItems || []) store.menuItems.set(id, item);
+    for (const [id, order] of parsed.foodOrders || []) store.foodOrders.set(id, order);
+    for (const review of parsed.restaurantReviews || []) store.restaurantReviews.push(review);
+    for (const [id, promo] of parsed.restaurantPromos || []) store.restaurantPromos.set(id, promo);
   } finally {
     isHydrating = false;
   }

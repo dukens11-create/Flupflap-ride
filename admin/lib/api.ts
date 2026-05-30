@@ -9,7 +9,9 @@ export type SectionKey =
   | 'safety'
   | 'promotions'
   | 'settings'
-  | 'reports';
+  | 'reports'
+  | 'restaurants'
+  | 'food-orders';
 
 export type SessionUser = {
   id: string;

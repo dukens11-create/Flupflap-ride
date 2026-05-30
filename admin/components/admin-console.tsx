@@ -11,6 +11,8 @@ export const sectionOrder = [
   'analytics',
   'drivers',
   'rides',
+  'restaurants',
+  'food-orders',
   'payments',
   'users',
   'support',
@@ -25,6 +27,8 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
   analytics: { title: 'Analytics', subtitle: 'Revenue, growth, driver performance, and retention trends.' },
   drivers: { title: 'Driver management', subtitle: 'Verification, compliance, earnings, and bulk actions.' },
   rides: { title: 'Ride management', subtitle: 'Live ride tracking, trip details, disputes, and cancellations.' },
+  restaurants: { title: 'Restaurant management', subtitle: 'Approve, verify, suspend, and manage restaurant partners.' },
+  'food-orders': { title: 'Food delivery orders', subtitle: 'Monitor food delivery orders, disputes, and delivery assignments.' },
   payments: { title: 'Payments & wallet', subtitle: 'Transactions, refunds, wallet exposure, and revenue monitoring.' },
   users: { title: 'User management', subtitle: 'Driver and rider account actions, search, and history.' },
   support: { title: 'Support & tickets', subtitle: 'Ticket queues, assignment notes, and customer follow-up.' },
@@ -751,6 +755,66 @@ export function AdminSectionPage({ section }: { section: SectionKey }) {
                 </div>
               ))}
             </div>
+          </SectionCard>
+        </div>
+      ) : null}
+
+      {section === 'restaurants' ? (
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <SectionCard title="Pending restaurant approvals" description="Review and approve new restaurant registrations.">
+            <div className="space-y-3 text-sm text-[var(--muted)]">
+              <p>Restaurant partner applications awaiting verification are listed here. Review submitted documents and approve or suspend each listing.</p>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <p className="font-semibold text-[var(--foreground)]">🍽️ Restaurant management features</p>
+                <ul className="mt-2 space-y-1 list-disc list-inside">
+                  <li>Approve pending restaurant registrations</li>
+                  <li>Verify business licenses and food safety permits</li>
+                  <li>Suspend non-compliant partners</li>
+                  <li>Manage commission rates per restaurant</li>
+                  <li>View restaurant analytics (orders, revenue, ratings)</li>
+                  <li>Handle restaurant disputes and refunds</li>
+                </ul>
+              </div>
+            </div>
+          </SectionCard>
+          <SectionCard title="Restaurant performance" description="Key metrics across all restaurant partners.">
+            <div className="grid gap-4 md:grid-cols-2">
+              <StatCard label="Total restaurants" value="—" helper="All registered partners" />
+              <StatCard label="Pending approval" value="—" tone="warning" helper="Awaiting review" />
+              <StatCard label="Active listings" value="—" tone="success" helper="Currently open" />
+              <StatCard label="Suspended" value="—" tone="danger" helper="Policy violations" />
+            </div>
+            <p className="mt-4 text-xs text-[var(--muted)]">Metrics populate when restaurant data is connected to the admin API endpoint <code>/api/restaurants/admin/list</code>.</p>
+          </SectionCard>
+        </div>
+      ) : null}
+
+      {section === 'food-orders' ? (
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <SectionCard title="Food delivery order monitoring" description="Real-time view of all food delivery orders and their status.">
+            <div className="space-y-3 text-sm text-[var(--muted)]">
+              <p>Monitor food delivery orders across all restaurants. Investigate disputes, trigger manual refunds, and reassign delivery drivers.</p>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <p className="font-semibold text-[var(--foreground)]">🛵 Order management features</p>
+                <ul className="mt-2 space-y-1 list-disc list-inside">
+                  <li>View all food orders by status (placed → delivered)</li>
+                  <li>Assign or reassign delivery drivers</li>
+                  <li>Cancel and trigger refunds for failed deliveries</li>
+                  <li>Resolve customer disputes (wrong items, late delivery)</li>
+                  <li>Monitor delivery SLA compliance</li>
+                  <li>Export order history for reconciliation</li>
+                </ul>
+              </div>
+            </div>
+          </SectionCard>
+          <SectionCard title="Food delivery analytics" description="Delivery performance and revenue breakdown.">
+            <div className="grid gap-4 md:grid-cols-2">
+              <StatCard label="Total food orders" value="—" helper="All time" />
+              <StatCard label="Active deliveries" value="—" tone="success" helper="In progress now" />
+              <StatCard label="Avg delivery time" value="—" helper="Minutes" />
+              <StatCard label="Food revenue" value="—" tone="success" helper="Platform commissions" />
+            </div>
+            <p className="mt-4 text-xs text-[var(--muted)]">Metrics populate when connected to <code>/api/food-orders/admin/list</code>.</p>
           </SectionCard>
         </div>
       ) : null}
