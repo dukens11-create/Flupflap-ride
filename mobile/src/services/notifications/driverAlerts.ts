@@ -1,0 +1,116 @@
+import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
+import { AppState, Platform, Vibration } from 'react-native';
+
+type DriverAlertKind = 'incoming-request' | 'accepted' | 'arrived' | 'trip-ended';
+
+const incomingRequestSound = require('../../../assets/sounds/incoming-request.wav');
+
+const vibrationPatterns: Record<DriverAlertKind, number[] | number> = {
+  'incoming-request': [0, 350, 180, 350],
+  accepted: 80,
+  arrived: [0, 120, 80, 120],
+  'trip-ended': [0, 180, 60, 180, 60, 180],
+};
+
+const notificationSounds: Record<DriverAlertKind, 'default' | 'incoming-request.wav'> = {
+  'incoming-request': 'incoming-request.wav',
+  accepted: 'default',
+  arrived: 'default',
+  'trip-ended': 'default',
+};
+
+let audioModeReady = false;
+
+const ensureAudioMode = async () => {
+  if (audioModeReady) {
+    return;
+  }
+
+  await Audio.setAudioModeAsync({
+    allowsRecordingIOS: false,
+    playsInSilentModeIOS: true,
+    shouldDuckAndroid: true,
+    staysActiveInBackground: false,
+  });
+  audioModeReady = true;
+};
+
+const playForegroundSound = async () => {
+  await ensureAudioMode();
+  const playback = await Audio.Sound.createAsync(incomingRequestSound, { shouldPlay: true, volume: 1 });
+  playback.sound.setOnPlaybackStatusUpdate((status) => {
+    if ('isLoaded' in status && status.isLoaded && status.didJustFinish) {
+      void playback.sound.unloadAsync();
+    }
+  });
+};
+
+export const configureDriverAlerts = async () => {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('driver-alerts', {
+      name: 'Driver alerts',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 300, 150, 300],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: 'incoming-request.wav',
+    });
+  }
+};
+
+export const ensureDriverAlertPermissions = async () => {
+  const settings = await Notifications.getPermissionsAsync();
+  if (settings.granted || settings.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
+    return true;
+  }
+
+  const requested = await Notifications.requestPermissionsAsync();
+  return requested.granted || requested.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+};
+
+export const sendDriverAlert = async (kind: DriverAlertKind, title: string, body: string) => {
+  if (AppState.currentState === 'active') {
+    try {
+      await playForegroundSound();
+    } catch {
+      // fall back to haptics/vibration only
+    }
+
+    if (kind === 'incoming-request') {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    } else {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    Vibration.vibrate(vibrationPatterns[kind]);
+    return;
+  }
+
+  const hasPermission = await ensureDriverAlertPermissions();
+  if (!hasPermission) {
+    return;
+  }
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      sound: notificationSounds[kind],
+      priority: Notifications.AndroidNotificationPriority.MAX,
+    },
+    trigger: null,
+  });
+};
+
+export const vibrateForAction = async (kind: 'selection' | 'success' | 'warning') => {
+  if (kind === 'selection') {
+    await Haptics.selectionAsync();
+    Vibration.vibrate(25);
+    return;
+  }
+
+  await Haptics.notificationAsync(
+    kind === 'success' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning
+  );
+  Vibration.vibrate(kind === 'success' ? 80 : [0, 120, 80, 120]);
+};

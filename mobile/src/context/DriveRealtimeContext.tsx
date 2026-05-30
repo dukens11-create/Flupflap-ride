@@ -1,13 +1,14 @@
-import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useAuth } from './AuthContext';
 import { driversApi } from '../services/api/driversApi';
 import { HttpError } from '../services/api/client';
-import { ridesApi } from '../services/api/ridesApi';
+import { syncDriverLocationInBackground } from '../services/background/locationTask';
+import { configureDriverAlerts, ensureDriverAlertPermissions, sendDriverAlert, vibrateForAction } from '../services/notifications/driverAlerts';
 import { buildNearbyRequests, getSeedLocation } from '../services/realtime/mockDriveFeed';
-import type { RideSummary } from '../types/api';
+import { ridesApi } from '../services/api/ridesApi';
+import type { RideEvent, RideSummary } from '../types/api';
 import type { ActiveTrip, DriverMetrics, DriverProfile, LatLng, RideHistoryItem, RideRequest } from '../types/drive';
 
 type DriveContextValue = {
@@ -34,6 +35,14 @@ const DriveRealtimeContext = createContext<DriveContextValue | undefined>(undefi
 
 const HOURS_INCREMENT_PER_TICK = 0.01;
 const DATA_REFRESH_INTERVAL_MS = 6000;
+const REQUEST_RESPONSE_WINDOW_MS = 30_000;
+
+type DriverNotification = {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+};
 
 const defaultProfile: DriverProfile = {
   id: 'driver',
@@ -100,6 +109,37 @@ const mapRideToHistory = (ride: RideSummary): RideHistoryItem => ({
   timeLabel: new Date(ride.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
 });
 
+const mapRideToRequest = (ride: RideSummary): RideRequest => {
+  const activeTrip = mapRideToActiveTrip(ride);
+  return {
+    ...activeTrip,
+    expiresAt: Date.parse(ride.latestEvent?.createdAt ?? ride.updatedAt ?? ride.createdAt) + REQUEST_RESPONSE_WINDOW_MS,
+  };
+};
+
+const buildDriverNotifications = (rides: RideSummary[]): DriverNotification[] => {
+  const seen = new Set<string>();
+
+  return rides
+    .flatMap((ride) =>
+      (ride.events ?? []).map((event: RideEvent) => ({
+        id: `${ride.id}-${event.id}`,
+        title: event.title,
+        body: event.message,
+        createdAt: event.createdAt,
+      }))
+    )
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .filter((notice) => {
+      if (seen.has(notice.id)) {
+        return false;
+      }
+      seen.add(notice.id);
+      return true;
+    })
+    .slice(0, 20);
+};
+
 const toErrorMessage = (error: unknown) => {
   if (error instanceof HttpError) {
     return error.message;
@@ -113,6 +153,9 @@ const toErrorMessage = (error: unknown) => {
 export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode }) => {
   const { state, session, onboardingStep } = useAuth();
   const refreshInFlightRef = useRef(false);
+  const handledRequestIdsRef = useRef(new Set<string>());
+  const previousTripRef = useRef<{ rideId: string; status: ActiveTrip['status'] } | null>(null);
+  const lastIncomingRequestIdRef = useRef<string | null>(null);
   const [profile, setProfile] = useState<DriverProfile>(defaultProfile);
   const [metrics, setMetrics] = useState<DriverMetrics>(defaultMetrics);
   const [location, setLocation] = useState<LatLng>(getSeedLocation());
@@ -120,8 +163,8 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
   const [activeRequest, setActiveRequest] = useState<RideRequest | null>(null);
   const [activeTrip, setActiveTrip] = useState<ActiveTrip | null>(null);
   const [rideHistory, setRideHistory] = useState<RideHistoryItem[]>([]);
-  const [notifications, setNotifications] = useState<Array<{ id: string; title: string; body: string; createdAt: string }>>([]);
-  const [requestTimeLeft] = useState(0);
+  const [notifications, setNotifications] = useState<DriverNotification[]>([]);
+  const [requestTimeLeft, setRequestTimeLeft] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [onboardingRequired, setOnboardingRequired] = useState(false);
@@ -134,10 +177,15 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     if (state !== 'signed_in' || !session) {
       setProfile(defaultProfile);
       setMetrics(defaultMetrics);
+      setActiveRequest(null);
       setActiveTrip(null);
       setRideHistory([]);
       setNotifications([]);
+      setRequestTimeLeft(0);
       setOnboardingRequired(false);
+      handledRequestIdsRef.current.clear();
+      previousTripRef.current = null;
+      lastIncomingRequestIdRef.current = null;
       return;
     }
 
@@ -146,17 +194,19 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     refreshInFlightRef.current = true;
 
     try {
-      const [driver, trip, history, earnings, rideNotices] = await Promise.all([
+      const [driver, trip, history, earnings] = await Promise.all([
         driversApi.me(),
         driversApi.currentTrip(),
         ridesApi.history(),
         driversApi.earnings(),
-        ridesApi.notifications(),
       ]);
 
       const backendProfile = driver.profile;
       const mappedTrip = trip.ride ? mapRideToActiveTrip(trip.ride) : null;
       setActiveTrip(mappedTrip);
+      setActiveRequest(
+        trip.ride && trip.ride.status === 'accepted' && !handledRequestIdsRef.current.has(trip.ride.id) ? mapRideToRequest(trip.ride) : null
+      );
 
       setProfile({
         id: backendProfile.userId,
@@ -183,15 +233,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
             ? Number((current.hoursOnline + HOURS_INCREMENT_PER_TICK).toFixed(2))
             : current.hoursOnline,
       }));
-
-      setNotifications(
-        rideNotices.notifications.map((notice) => ({
-          id: `${notice.rideId ?? 'ride'}-${notice.id}`,
-          title: notice.title,
-          body: notice.message,
-          createdAt: notice.createdAt,
-        }))
-      );
+      setNotifications(buildDriverNotifications(trip.ride ? [trip.ride, ...history.rides] : history.rides));
       setOnboardingRequired(onboardingStep !== 'ready');
     } catch (err) {
       const message = toErrorMessage(err);
@@ -210,6 +252,11 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
   useEffect(() => {
     setNearbyRequests(buildNearbyRequests());
   }, [location]);
+
+  useEffect(() => {
+    void configureDriverAlerts();
+    void ensureDriverAlertPermissions();
+  }, []);
 
   useEffect(() => {
     let watcher: Location.LocationSubscription | null = null;
@@ -239,6 +286,10 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
   }, [profile.isOnline, state]);
 
   useEffect(() => {
+    void syncDriverLocationInBackground(state === 'signed_in' && profile.isOnline);
+  }, [profile.isOnline, state]);
+
+  useEffect(() => {
     if (state !== 'signed_in') {
       return;
     }
@@ -250,6 +301,62 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
 
     return () => clearInterval(ticker);
   }, [refreshData, state]);
+
+  useEffect(() => {
+    if (!activeRequest) {
+      setRequestTimeLeft(0);
+      return;
+    }
+
+    const updateTimer = () => {
+      const nextTimeLeft = Math.max(0, Math.ceil((activeRequest.expiresAt - Date.now()) / 1000));
+      setRequestTimeLeft(nextTimeLeft);
+      if (nextTimeLeft === 0) {
+        handledRequestIdsRef.current.add(activeRequest.id);
+        setActiveRequest(null);
+      }
+    };
+
+    updateTimer();
+    const intervalId = setInterval(updateTimer, 1000);
+    return () => clearInterval(intervalId);
+  }, [activeRequest]);
+
+  useEffect(() => {
+    if (!activeRequest || lastIncomingRequestIdRef.current === activeRequest.id) {
+      return;
+    }
+
+    lastIncomingRequestIdRef.current = activeRequest.id;
+    void sendDriverAlert(
+      'incoming-request',
+      'Incoming ride request',
+      `${activeRequest.riderName} • ${activeRequest.pickupEtaMinutes} min away • $${activeRequest.estimatedFare.toFixed(2)}`
+    );
+  }, [activeRequest]);
+
+  useEffect(() => {
+    const previousTrip = previousTripRef.current;
+
+    if (!activeTrip) {
+      if (previousTrip?.status === 'in-progress') {
+        void sendDriverAlert('trip-ended', 'Trip ended', 'Trip completed. Payout and receipt details are ready.');
+      }
+      previousTripRef.current = null;
+      return;
+    }
+
+    if (!previousTrip || previousTrip.rideId !== activeTrip.rideId) {
+      previousTripRef.current = { rideId: activeTrip.rideId, status: activeTrip.status };
+      return;
+    }
+
+    if (previousTrip.status !== activeTrip.status && activeTrip.status === 'in-progress') {
+      void sendDriverAlert('arrived', 'Trip update', 'Pickup confirmed and the ride is now in progress.');
+    }
+
+    previousTripRef.current = { rideId: activeTrip.rideId, status: activeTrip.status };
+  }, [activeTrip]);
 
   const setOnline = useCallback(
     async (isOnline: boolean) => {
@@ -265,6 +372,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
         }
         await driversApi.setAvailability(isOnline ? 'online' : 'offline');
         await refreshData();
+        await vibrateForAction(isOnline ? 'success' : 'selection');
       } catch (err) {
         setError(toErrorMessage(err));
       }
@@ -278,7 +386,9 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     }
     try {
       await ridesApi.accept(activeRequest.id);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      handledRequestIdsRef.current.add(activeRequest.id);
+      previousTripRef.current = { rideId: activeRequest.id, status: 'accepted' };
+      await sendDriverAlert('accepted', 'Request accepted', `Head to ${activeRequest.riderName} for pickup.`);
       await refreshData();
       setActiveRequest(null);
     } catch (err) {
@@ -287,8 +397,12 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
   }, [activeRequest, refreshData]);
 
   const declineRequest = useCallback(() => {
+    if (activeRequest) {
+      handledRequestIdsRef.current.add(activeRequest.id);
+      void vibrateForAction('warning');
+    }
     setActiveRequest(null);
-  }, []);
+  }, [activeRequest]);
 
   const advanceTrip = useCallback(async () => {
     if (!activeTrip) {
@@ -298,10 +412,13 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     try {
       if (activeTrip.status === 'accepted') {
         await ridesApi.start(activeTrip.rideId);
+        previousTripRef.current = { rideId: activeTrip.rideId, status: 'in-progress' };
+        await sendDriverAlert('arrived', 'Trip started', `${activeTrip.riderName} is onboard. Continue to the destination.`);
       } else if (activeTrip.status === 'in-progress') {
         await ridesApi.complete(activeTrip.rideId);
+        previousTripRef.current = null;
+        await sendDriverAlert('trip-ended', 'Trip ended', `${activeTrip.riderName}'s trip is complete.`);
       }
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await refreshData();
     } catch (err) {
       setError(toErrorMessage(err));
