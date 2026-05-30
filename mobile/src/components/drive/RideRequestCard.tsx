@@ -3,18 +3,16 @@ import { useEffect, useState } from 'react';
 
 import { useAccessibilitySettings } from '../../context/AccessibilityContext';
 import { useDriveRealtime } from '../../context/DriveRealtimeContext';
-<<<<<<< HEAD
 import { ridesApi } from '../../services/api/ridesApi';
-=======
 import { useLocale } from '../../context/LocaleContext';
->>>>>>> origin/main
 import { driverStatusMeta, tripStatusOrder, tripStepLabels } from '../../utils/driveStatus';
 
 const COLOR_STEP_INACTIVE = '#E4E4E7'; // zinc-200
 
 export const RideRequestCard = () => {
   const { activeRequest, activeTrip, requestTimeLeft, acceptRequest, declineRequest, advanceTrip } = useDriveRealtime();
-<<<<<<< HEAD
+  const { highContrastEnabled, maxFontSizeMultiplier } = useAccessibilitySettings();
+  const { formatCurrency, formatNumber, formatTime } = useLocale();
   const [passengerRating, setPassengerRating] = useState(5);
   const [passengerComment, setPassengerComment] = useState('');
   const [ratingState, setRatingState] = useState<string | null>(null);
@@ -24,10 +22,6 @@ export const RideRequestCard = () => {
     setPassengerComment('');
     setRatingState(null);
   }, [activeTrip?.rideId]);
-=======
-  const { highContrastEnabled, maxFontSizeMultiplier } = useAccessibilitySettings();
-  const { formatCurrency, formatNumber, formatTime } = useLocale();
->>>>>>> origin/main
 
   if (!activeRequest && !activeTrip) {
     return null;
@@ -117,7 +111,6 @@ export const RideRequestCard = () => {
           ))}
         </View>
 
-<<<<<<< HEAD
         {activeTrip.status === 'completed' && typeof activeTrip.passengerRating !== 'number' ? (
           <View className="mt-4 rounded-2xl bg-zinc-100 p-3 dark:bg-zinc-800">
             <Text className="text-[11px] uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-300">Passenger rating</Text>
@@ -127,8 +120,10 @@ export const RideRequestCard = () => {
                   key={star}
                   className={`rounded-xl px-2 py-1 ${passengerRating >= star ? 'bg-amber-400' : 'bg-zinc-300 dark:bg-zinc-700'}`}
                   onPress={() => setPassengerRating(star)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Rate ${star} stars`}
                 >
-                  <Text className="text-xs font-semibold text-zinc-900">★</Text>
+                  <Text className="text-xs font-semibold text-zinc-900" maxFontSizeMultiplier={maxFontSizeMultiplier}>★</Text>
                 </Pressable>
               ))}
             </View>
@@ -146,23 +141,22 @@ export const RideRequestCard = () => {
                   .then(() => setRatingState('Passenger rated.'))
                   .catch((error) => setRatingState(error instanceof Error ? error.message : 'Unable to submit passenger rating.'));
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Submit passenger rating"
             >
-              <Text className="text-center text-xs font-semibold text-white dark:text-zinc-900">Submit rating</Text>
+              <Text className="text-center text-xs font-semibold text-white dark:text-zinc-900" maxFontSizeMultiplier={maxFontSizeMultiplier}>Submit rating</Text>
             </Pressable>
-            {ratingState ? <Text className="mt-2 text-xs text-zinc-500 dark:text-zinc-300">{ratingState}</Text> : null}
+            {ratingState ? <Text className="mt-2 text-xs text-zinc-500 dark:text-zinc-300" maxFontSizeMultiplier={maxFontSizeMultiplier}>{ratingState}</Text> : null}
           </View>
         ) : activeTrip.status === 'completed' && typeof activeTrip.passengerRating === 'number' ? (
           <View className="mt-4 rounded-2xl bg-zinc-100 p-3 dark:bg-zinc-800">
-            <Text className="text-xs text-zinc-700 dark:text-zinc-200">
+            <Text className="text-xs text-zinc-700 dark:text-zinc-200" maxFontSizeMultiplier={maxFontSizeMultiplier}>
               Passenger rated ★ {activeTrip.passengerRating.toFixed(1)}
               {activeTrip.passengerReview ? ` · ${activeTrip.passengerReview}` : ''}
             </Text>
           </View>
         ) : null}
 
-        <Pressable className="mt-4 rounded-2xl px-4 py-3.5" style={{ backgroundColor: statusMeta.accentColor }} onPress={advanceTrip}>
-          <Text className="text-center text-base font-bold text-white">{statusMeta.actionLabel}</Text>
-=======
         <Pressable
           className="mt-4 rounded-2xl px-4 py-3.5"
           style={{ backgroundColor: statusMeta.accentColor }}
@@ -171,7 +165,6 @@ export const RideRequestCard = () => {
           accessibilityLabel={statusMeta.actionLabel}
         >
           <Text className="text-center text-base font-bold text-white" maxFontSizeMultiplier={maxFontSizeMultiplier}>{statusMeta.actionLabel}</Text>
->>>>>>> origin/main
         </Pressable>
       </View>
     );

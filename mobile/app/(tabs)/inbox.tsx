@@ -6,9 +6,11 @@ import { useDriveRealtime } from '../../src/context/DriveRealtimeContext';
 import { EmptyState } from '../../src/components/ui/EmptyState';
 import { ErrorBanner } from '../../src/components/ui/ErrorBanner';
 import { LoadingState } from '../../src/components/ui/LoadingState';
-<<<<<<< HEAD
 import { ridesApi } from '../../src/services/api/ridesApi';
 import { supportApi } from '../../src/services/api/supportApi';
+import { useLocale } from '../../src/context/LocaleContext';
+import { useScreenTracking } from '../../src/hooks/useScreenTracking';
+import { logEvent } from '../../src/services/observability';
 
 const CHAT_EVENT_TITLE = 'Trip chat';
 const MAX_VISIBLE_CHAT_MESSAGES = 8;
@@ -16,21 +18,13 @@ const MAX_VISIBLE_CHAT_MESSAGES = 8;
 export default function InboxScreen() {
   const { notifications, activeTrip, isLoading, error, refreshData } = useDriveRealtime();
   const { session } = useAuth();
+  useScreenTracking('inbox');
+  const { t, formatTime } = useLocale();
   const [chatMessage, setChatMessage] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
   const [supportStatus, setSupportStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openTicketId, setOpenTicketId] = useState<string | null>(null);
-=======
-import { useLocale } from '../../src/context/LocaleContext';
-import { useScreenTracking } from '../../src/hooks/useScreenTracking';
-import { logEvent } from '../../src/services/observability';
-
-export default function InboxScreen() {
-  const { notifications, isLoading, error, refreshData } = useDriveRealtime();
-  useScreenTracking('inbox');
-  const { t, formatTime } = useLocale();
->>>>>>> origin/main
   const hasNotifications = notifications.length > 0;
   const chatMessages = useMemo(
     () => (activeTrip?.timeline ?? []).filter((event) => event.title === CHAT_EVENT_TITLE).slice(-MAX_VISIBLE_CHAT_MESSAGES),

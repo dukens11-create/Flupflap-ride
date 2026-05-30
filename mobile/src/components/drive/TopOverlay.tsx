@@ -12,13 +12,9 @@ const DEFAULT_TRUST_SCORE = 80;
 
 export const TopOverlay = () => {
   const router = useRouter();
-<<<<<<< HEAD
   const { profile, activeRequest, activeTrip, requestTimeLeft, setOnline, error, onboardingRequired, isOfflineMode } = useDriveRealtime();
-=======
-  const { profile, activeRequest, activeTrip, requestTimeLeft, setOnline, error, onboardingRequired } = useDriveRealtime();
   const { highContrastEnabled, maxFontSizeMultiplier } = useAccessibilitySettings();
   const { t } = useLocale();
->>>>>>> origin/main
   const displayStatus = activeTrip?.status ?? profile.status;
   const statusMeta = driverStatusMeta[displayStatus];
   const statusLabel = activeRequest && !activeTrip ? 'Incoming request' : statusMeta.label;
@@ -42,16 +38,12 @@ export const TopOverlay = () => {
 
         <View className="ml-3 flex-1">
           <View className="flex-row items-center gap-2">
-<<<<<<< HEAD
-            <Text className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">{profile.name}</Text>
+            <Text className={`text-lg font-semibold ${highContrastEnabled ? 'text-white' : 'text-zinc-950 dark:text-zinc-100'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>{profile.name}</Text>
             {profile.verificationBadge === 'verified' ? (
-              <View className="rounded-full bg-emerald-100 px-2 py-0.5 dark:bg-emerald-900/40">
-                <Text className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Verified</Text>
+              <View className={`rounded-full px-2 py-0.5 ${highContrastEnabled ? 'border border-white bg-black' : 'bg-emerald-100 dark:bg-emerald-900/40'}`}>
+                <Text className={`text-[10px] font-semibold uppercase tracking-wide ${highContrastEnabled ? 'text-white' : 'text-emerald-600 dark:text-emerald-300'}`}>Verified</Text>
               </View>
             ) : null}
-=======
-            <Text className={`text-lg font-semibold ${highContrastEnabled ? 'text-white' : 'text-zinc-950 dark:text-zinc-100'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>{profile.name}</Text>
->>>>>>> origin/main
           </View>
           <View className="mt-1 flex-row items-center gap-2">
             <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: accentColor }} />
@@ -81,10 +73,6 @@ export const TopOverlay = () => {
           />
         </View>
 
-<<<<<<< HEAD
-        <Pressable className="ml-2 h-9 w-9 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800" onPress={() => router.push('/(tabs)/inbox')}>
-          <Ionicons name="notifications-outline" size={18} color={profile.isOnline ? '#0f172a' : '#6b7280'} />
-=======
         <Pressable
           className={`ml-2 h-9 w-9 items-center justify-center rounded-full ${highContrastEnabled ? 'border border-white bg-black' : 'bg-zinc-100 dark:bg-zinc-800'}`}
           onPress={() => {
@@ -100,7 +88,6 @@ export const TopOverlay = () => {
           hitSlop={8}
         >
           <Ionicons name="notifications-outline" size={18} color={highContrastEnabled ? '#FFFFFF' : profile.isOnline ? '#0f172a' : '#6b7280'} />
->>>>>>> origin/main
         </Pressable>
       </View>
 

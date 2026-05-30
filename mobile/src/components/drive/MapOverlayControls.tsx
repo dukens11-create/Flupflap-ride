@@ -1,11 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-<<<<<<< HEAD
-import { Pressable, Text, useColorScheme, View } from 'react-native';
-=======
 import { Pressable, Text, View, useColorScheme } from 'react-native';
 
 import { useLocale } from '../../context/LocaleContext';
->>>>>>> origin/main
 
 type MapOverlayControlsProps = {
   onEmergency: () => void;
@@ -34,28 +30,6 @@ export const MapOverlayControls = ({
   onZoomOut,
   onOverview,
   showOverview = false,
-<<<<<<< HEAD
-}: MapOverlayControlsProps) => {
-  const scheme = useColorScheme();
-  const neutralIconColor = scheme === 'dark' ? '#E4E4E7' : '#0F172A';
-
-  return (
-    <View className="absolute bottom-80 right-4 z-20 gap-3">
-      <QuickActionButton tone="danger" label="SOS" icon="warning" onPress={onEmergency} />
-      <QuickActionButton tone="neutral" label="Share" icon="share-social" onPress={onShareTrip} />
-      <QuickActionButton tone="neutral" label="Help" icon="help-buoy" onPress={onSupport} />
-      {showOverview ? (
-        <Pressable
-          className="h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-soft dark:bg-zinc-900"
-          onPress={onOverview}
-        >
-          <Ionicons name="map" size={18} color="#2563EB" />
-        </Pressable>
-      ) : null}
-      <Pressable
-        className="h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-soft dark:bg-zinc-900"
-        onPress={onZoomIn}
-=======
   highContrastEnabled = false,
 }: MapOverlayControlsProps) => {
   const { t } = useLocale();
@@ -87,31 +61,19 @@ export const MapOverlayControls = ({
         accessibilityRole="button"
         accessibilityLabel="Zoom in map"
         hitSlop={8}
->>>>>>> origin/main
       >
         <Ionicons name="add" size={20} color={neutralIconColor} />
       </Pressable>
       <Pressable
-<<<<<<< HEAD
-        className="h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-soft dark:bg-zinc-900"
-        onPress={onZoomOut}
-=======
         className={`h-12 w-12 items-center justify-center rounded-2xl shadow-soft ${highContrastEnabled ? 'border border-white bg-black' : 'bg-white dark:bg-zinc-900'}`}
         onPress={onZoomOut}
         accessibilityRole="button"
         accessibilityLabel="Zoom out map"
         hitSlop={8}
->>>>>>> origin/main
       >
         <Ionicons name="remove" size={20} color={neutralIconColor} />
       </Pressable>
       <Pressable
-<<<<<<< HEAD
-        className="h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-soft dark:bg-zinc-900"
-        onPress={onRecenter}
-      >
-        <Ionicons name="locate" size={22} color="#16A34A" />
-=======
         className={`h-14 w-14 items-center justify-center rounded-2xl shadow-soft ${highContrastEnabled ? 'border border-white bg-black' : 'bg-white dark:bg-zinc-900'}`}
         onPress={onRecenter}
         accessibilityRole="button"
@@ -120,7 +82,6 @@ export const MapOverlayControls = ({
         hitSlop={8}
       >
         <Ionicons name="locate" size={22} color={recenterIconColor} />
->>>>>>> origin/main
       </Pressable>
     </View>
   );

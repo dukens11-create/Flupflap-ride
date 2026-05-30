@@ -8,18 +8,14 @@ import { BottomStatsPanel } from '../../src/components/drive/BottomStatsPanel';
 import { MapOverlayControls } from '../../src/components/drive/MapOverlayControls';
 import { RideRequestCard } from '../../src/components/drive/RideRequestCard';
 import { TopOverlay } from '../../src/components/drive/TopOverlay';
-<<<<<<< HEAD
 import { useAuth } from '../../src/context/AuthContext';
-import { useDriveRealtime } from '../../src/context/DriveRealtimeContext';
-import { safetyApi } from '../../src/services/api/safetyApi';
-=======
 import { useAccessibilitySettings } from '../../src/context/AccessibilityContext';
 import { useDriveRealtime } from '../../src/context/DriveRealtimeContext';
 import { useLocale } from '../../src/context/LocaleContext';
 import { useScreenTracking } from '../../src/hooks/useScreenTracking';
+import { safetyApi } from '../../src/services/api/safetyApi';
 import { logError, logEvent } from '../../src/services/observability';
 import { logDriverError, logDriverWarning, trackDriverEvent } from '../../src/services/monitoring/telemetry';
->>>>>>> origin/main
 import type { LatLng } from '../../src/types/drive';
 import { buildNavigationRoute, distanceKmBetween } from '../../src/utils/navigation';
 
@@ -45,11 +41,8 @@ export default function DriveHomeScreen() {
   const mapRef = useRef<MapView | null>(null);
   const scheme = useColorScheme();
   const router = useRouter();
-<<<<<<< HEAD
   const { session } = useAuth();
-=======
   const { highContrastEnabled, maxFontSizeMultiplier } = useAccessibilitySettings();
->>>>>>> origin/main
   const [isSupportVisible, setIsSupportVisible] = useState(false);
   const { location, nearbyRequests, activeRequest, activeTrip, error, profile } = useDriveRealtime();
   const { t, formatNumber } = useLocale();
@@ -139,7 +132,6 @@ export default function DriveHomeScreen() {
     Alert.alert(t('home.emergencyTitle'), t('home.emergencyMessage'), [
       { text: t('home.cancel'), style: 'cancel' },
       {
-<<<<<<< HEAD
         text: 'Panic alert',
         style: 'destructive',
         onPress: () => {
@@ -157,20 +149,6 @@ export default function DriveHomeScreen() {
         },
       },
       {
-        text: `Call ${emergencyNumber}`,
-        style: 'destructive',
-        onPress: () => {
-          void Linking.canOpenURL(`tel:${emergencyNumber}`)
-            .then((supported) => {
-              if (!supported) {
-                throw new Error('Dialer is not supported on this device.');
-              }
-              return Linking.openURL(`tel:${emergencyNumber}`);
-            })
-            .catch(() => {
-              Alert.alert('Unable to open dialer', 'Call your local emergency number directly from this device.');
-            });
-=======
         text: t('home.callNumber', { number: emergencyNumber }),
         style: 'destructive',
         onPress: () => {
@@ -187,7 +165,6 @@ export default function DriveHomeScreen() {
               Alert.alert(t('home.unableToOpenDialerTitle'), t('home.unableToOpenDialerBody'));
             }
           })();
->>>>>>> origin/main
         },
       },
     ]);

@@ -415,7 +415,6 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
       });
       setNotifications(buildDriverNotifications(trip.ride ? [trip.ride, ...history.rides] : history.rides));
       setOnboardingRequired(onboardingStep !== 'ready');
-<<<<<<< HEAD
       setIsOfflineMode(false);
       await persistCacheSnapshot({
         profile: {
@@ -438,7 +437,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
         },
         rideHistory: history.rides.map(mapRideToHistory),
         notifications: buildDriverNotifications(trip.ride ? [trip.ride, ...history.rides] : history.rides),
-=======
+      });
       stopRefreshTimer({
         success: true,
         rideHistoryCount: history.rides.length,
@@ -447,7 +446,6 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
       logEvent('driver_data_refreshed', {
         rideHistoryCount: history.rides.length,
         hasActiveTrip: Boolean(mappedTrip),
->>>>>>> origin/main
       });
     } catch (err) {
       const message = toErrorMessage(err);
@@ -460,12 +458,9 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
         setError(message);
         logError('driver_refresh_data_failed', err);
       }
-<<<<<<< HEAD
       const restored = await restoreFromCache();
       setIsOfflineMode(restored);
-=======
       logDriverError('refresh_data', err, { onboardingStep, hasSession: Boolean(session) });
->>>>>>> origin/main
     } finally {
       setIsLoading(false);
       refreshInFlightRef.current = false;
@@ -487,14 +482,6 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
   }, [location]);
 
   useEffect(() => {
-<<<<<<< HEAD
-    void configureDriverAlerts().catch((alertError) => {
-      console.warn('Unable to configure driver alerts', alertError);
-    });
-    void ensureDriverAlertPermissions().catch((permissionError) => {
-      console.warn('Unable to request driver alert permissions', permissionError);
-    });
-=======
     const configureAlerts = async () => {
       try {
         await configureDriverAlerts();
@@ -505,7 +492,6 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
     };
 
     void configureAlerts();
->>>>>>> origin/main
   }, []);
 
   useEffect(() => {
@@ -554,43 +540,6 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
         const permission = await Location.requestForegroundPermissionsAsync();
         if (permission.status !== Location.PermissionStatus.GRANTED) {
           setError('Location permission is required for live trip updates.');
-<<<<<<< HEAD
-          return;
-        }
-
-        const initialFix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-        setLocation({ latitude: initialFix.coords.latitude, longitude: initialFix.coords.longitude });
-      } catch (initialFixError) {
-        // Keep seeded location fallback if a one-off high-accuracy fix is unavailable.
-        console.warn('Initial high-accuracy location fix unavailable', initialFixError);
-      }
-
-      watcher = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: LOCATION_UPDATE_INTERVAL_MS,
-          distanceInterval: LOCATION_UPDATE_DISTANCE_METERS,
-          mayShowUserSettingsDialog: true,
-        },
-        (update) => {
-          if (typeof update.coords.accuracy === 'number' && update.coords.accuracy > MAX_LOCATION_ACCURACY_METERS) {
-            return;
-          }
-          const nextLocation = { latitude: update.coords.latitude, longitude: update.coords.longitude };
-          setLocation(nextLocation);
-          if (state === 'signed_in' && profile.isOnline) {
-            const now = Date.now();
-            const distanceFromLastPush = lastLocationPushRef.current
-              ? distanceKmBetween(lastLocationPushRef.current, nextLocation) * 1000
-              : Number.POSITIVE_INFINITY;
-            const elapsed = now - lastLocationPushAtRef.current;
-            if (distanceFromLastPush >= LOCATION_SEND_DISTANCE_METERS || elapsed >= LOCATION_SEND_INTERVAL_MS) {
-              lastLocationPushRef.current = nextLocation;
-              lastLocationPushAtRef.current = now;
-              void driversApi.updateLocation(nextLocation.latitude, nextLocation.longitude).catch((locationSyncError) => {
-                console.warn('Unable to sync driver location', locationSyncError);
-              });
-=======
           logEvent('location_permission_denied');
           return;
         }
@@ -634,7 +583,6 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
                   });
                 });
               }
->>>>>>> origin/main
             }
           }
         );

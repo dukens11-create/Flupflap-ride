@@ -6,26 +6,20 @@ import { useDriveRealtime } from '../../src/context/DriveRealtimeContext';
 import { EmptyState } from '../../src/components/ui/EmptyState';
 import { ErrorBanner } from '../../src/components/ui/ErrorBanner';
 import { LoadingState } from '../../src/components/ui/LoadingState';
-<<<<<<< HEAD
 import { walletApi } from '../../src/services/api/walletApi';
-=======
 import { useLocale } from '../../src/context/LocaleContext';
 import { useScreenTracking } from '../../src/hooks/useScreenTracking';
 import { logEvent } from '../../src/services/observability';
->>>>>>> origin/main
 import type { RideHistoryItem } from '../../src/types/drive';
 
 const MAX_VISIBLE_LEDGER_ENTRIES = 8;
 
 export default function EarningsScreen() {
   const { metrics, rideHistory, isLoading, error, refreshData } = useDriveRealtime();
-<<<<<<< HEAD
   const { session } = useAuth();
   const [ledgerEntries, setLedgerEntries] = useState<Array<{ id: string; kind: 'credit' | 'debit'; amountCents: number; reason: string; createdAt: string }>>([]);
-=======
   useScreenTracking('earnings');
   const { t, formatCurrency, formatNumber, formatTime } = useLocale();
->>>>>>> origin/main
   const hasEarnings = metrics.tripsCompleted > 0;
 
   useEffect(() => {
