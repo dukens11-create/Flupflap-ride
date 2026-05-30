@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { useAuth } from '../../src/context/AuthContext';
+import { useLocale } from '../../src/context/LocaleContext';
 import { useScreenTracking } from '../../src/hooks/useScreenTracking';
 import { logEvent } from '../../src/services/observability';
 
@@ -17,6 +18,7 @@ export default function SignUpScreen() {
   const router = useRouter();
   const { signUp } = useAuth();
   useScreenTracking('sign_up');
+  const { t } = useLocale();
   const normalizedEmail = email.trim();
   const hasValidEmail = EMAIL_PATTERN.test(normalizedEmail);
   const canSubmit = hasValidEmail && password.length >= 6 && acceptedPolicies && !isSubmitting;
@@ -50,8 +52,8 @@ export default function SignUpScreen() {
 
   return (
     <ScrollView className="flex-1 bg-zinc-950" contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 }}>
-      <Text className="text-3xl font-bold text-zinc-100">Create driver account</Text>
-      <Text className="mt-2 text-sm text-zinc-400">Sign up as a driver and complete onboarding before going online.</Text>
+      <Text className="text-3xl font-bold text-zinc-100">{t('auth.signUpTitle')}</Text>
+      <Text className="mt-2 text-sm text-zinc-400">{t('auth.signUpSubtitle')}</Text>
 
       <View className="mt-6 rounded-3xl bg-zinc-900 p-4">
         <Text className="text-sm font-semibold text-zinc-100">What you unlock after approval</Text>
@@ -63,7 +65,7 @@ export default function SignUpScreen() {
       <TextInput
         value={email}
         onChangeText={setEmail}
-        placeholder="Email"
+        placeholder={t('auth.emailPlaceholder')}
         keyboardType="email-address"
         autoCapitalize="none"
         className="mt-6 rounded-2xl bg-zinc-900 px-4 py-3 text-zinc-100"
@@ -72,7 +74,7 @@ export default function SignUpScreen() {
       <TextInput
         value={password}
         onChangeText={setPassword}
-        placeholder="Password (min 6 chars)"
+        placeholder={t('auth.passwordWithMinPlaceholder')}
         secureTextEntry
         className="mt-3 rounded-2xl bg-zinc-900 px-4 py-3 text-zinc-100"
         placeholderTextColor="#71717A"
@@ -97,12 +99,12 @@ export default function SignUpScreen() {
         disabled={!canSubmit}
         onPress={handleSubmit}
       >
-        <Text className="text-center font-semibold text-white">{isSubmitting ? 'Creating account...' : 'Create account'}</Text>
+        <Text className="text-center font-semibold text-white">{isSubmitting ? t('auth.creatingAccount') : t('auth.createAccount')}</Text>
       </Pressable>
 
       <Link href="/(auth)/sign-in" asChild>
         <Pressable className="mt-4">
-          <Text className="text-center text-sm text-zinc-300">Already have an account? Sign in</Text>
+          <Text className="text-center text-sm text-zinc-300">{t('auth.haveAccount')}</Text>
         </Pressable>
       </Link>
     </ScrollView>
