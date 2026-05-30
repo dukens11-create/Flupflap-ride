@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image, Pressable, Switch, Text, View } from 'react-native';
 
 import { useDriveRealtime } from '../../context/DriveRealtimeContext';
+import { logDriverError } from '../../services/monitoring/telemetry';
 import { driverStatusMeta } from '../../utils/driveStatus';
 
 export const TopOverlay = () => {
@@ -56,7 +57,13 @@ export const TopOverlay = () => {
 
         <Pressable
           className="ml-2 h-9 w-9 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800"
-          onPress={() => router.push('/(tabs)/inbox')}
+          onPress={() => {
+            try {
+              router.push('/(tabs)/inbox');
+            } catch (err) {
+              logDriverError('open_inbox', err);
+            }
+          }}
           accessibilityRole="button"
           accessibilityLabel="Open inbox"
           accessibilityHint="View notifications and support updates"

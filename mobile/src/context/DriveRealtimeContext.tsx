@@ -8,7 +8,7 @@ import { syncDriverLocationInBackground } from '../services/background/locationT
 import { configureDriverAlerts, ensureDriverAlertPermissions, sendDriverAlert, vibrateForAction } from '../services/notifications/driverAlerts';
 import { ridesApi } from '../services/api/ridesApi';
 import { buildIncomingRideRequests, buildNearbyRequests, estimateRequestExpirationSeconds, getSeedLocation } from '../services/realtime/mockDriveFeed';
-import { logDriverError, trackDriverEvent } from '../services/monitoring/telemetry';
+import { logDriverError, logDriverWarning, trackDriverEvent } from '../services/monitoring/telemetry';
 import type { RideEvent, RideSummary } from '../types/api';
 import type { ActiveTrip, DriverMetrics, DriverProfile, LatLng, RideHistoryItem, RideRequest } from '../types/drive';
 import { distanceKmBetween } from '../utils/navigation';
@@ -429,7 +429,7 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
           setLocation({ latitude: initialFix.coords.latitude, longitude: initialFix.coords.longitude });
         } catch (initialFixError) {
           // Keep seeded location fallback if a one-off high-accuracy fix is unavailable.
-          logDriverError('initial_location_fix', initialFixError);
+          logDriverWarning('initial_location_fix', initialFixError);
         }
 
         watcher = await Location.watchPositionAsync(
@@ -456,8 +456,8 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
                 lastLocationPushAtRef.current = now;
                 void driversApi.updateLocation(nextLocation.latitude, nextLocation.longitude).catch((err) => {
                   logDriverError('update_location', err, {
-                    latitude: Number(nextLocation.latitude.toFixed(5)),
-                    longitude: Number(nextLocation.longitude.toFixed(5)),
+                    latitude: Number(nextLocation.latitude.toFixed(3)),
+                    longitude: Number(nextLocation.longitude.toFixed(3)),
                   });
                 });
               }
