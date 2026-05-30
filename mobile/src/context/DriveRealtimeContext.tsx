@@ -50,6 +50,8 @@ const defaultMetrics: DriverMetrics = {
   earningsToday: 0,
   tripsCompleted: 0,
   hoursOnline: 0,
+  earningsPerTrip: 0,
+  earningsPerHour: 0,
 };
 
 const formatCoordinate = (lat?: number, lng?: number) => {
@@ -101,6 +103,8 @@ const mapRideToHistory = (ride: RideSummary): RideHistoryItem => ({
   route: `${formatCoordinate(ride.pickupLat, ride.pickupLng)} → ${formatCoordinate(ride.dropoffLat, ride.dropoffLng)}`,
   fare: Number(ride.fareEstimate.toFixed(2)),
   timeLabel: new Date(ride.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+  miles: Number(ride.miles.toFixed(1)),
+  date: ride.updatedAt,
 });
 
 const mapRequestToMockTrip = (request: RideRequest): ActiveTrip => {
@@ -238,14 +242,20 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
       });
 
       setRideHistory(history.rides.map(mapRideToHistory));
-      setMetrics((current) => ({
-        earningsToday: Number((earnings.earningsCents / 100).toFixed(2)),
-        tripsCompleted: earnings.rideCount,
-        hoursOnline:
-          isDriverOnlineState(backendProfile.availabilityStatus)
-            ? Number((current.hoursOnline + HOURS_INCREMENT_PER_TICK).toFixed(2))
-            : current.hoursOnline,
-      }));
+      setMetrics((current: DriverMetrics) => {
+        const nextHours = isDriverOnlineState(backendProfile.availabilityStatus)
+          ? Number((current.hoursOnline + HOURS_INCREMENT_PER_TICK).toFixed(2))
+          : current.hoursOnline;
+        const earningsToday = Number((earnings.earningsCents / 100).toFixed(2));
+        const rideCount = earnings.rideCount;
+        return {
+          earningsToday,
+          tripsCompleted: rideCount,
+          hoursOnline: nextHours,
+          earningsPerTrip: rideCount > 0 ? Number((earningsToday / rideCount).toFixed(2)) : 0,
+          earningsPerHour: nextHours > 0 ? Number((earningsToday / nextHours).toFixed(2)) : 0,
+        };
+      });
 
       setNotifications(
         rideNotices.notifications.map((notice) => ({

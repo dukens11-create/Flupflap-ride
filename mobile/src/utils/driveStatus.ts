@@ -15,12 +15,12 @@ export const driverStatusMeta: Record<DriverStatus, { label: string; subtitle: s
     accentColor: '#71717A',
   },
   onboarding: {
-    label: 'Onboarding required',
+    label: 'Onboarding Required',
     subtitle: 'Complete driver onboarding before going online.',
     accentColor: '#F97316',
   },
   waiting: {
-    label: 'Waiting for requests',
+    label: 'Looking for Requests',
     subtitle: 'You are online and visible to nearby riders.',
     accentColor: '#22C55E',
   },
@@ -28,19 +28,19 @@ export const driverStatusMeta: Record<DriverStatus, { label: string; subtitle: s
     label: 'Head to pickup',
     subtitle: 'Navigate to pickup, confirm your rider, then start the trip.',
     accentColor: '#10B981',
-    actionLabel: 'Start trip',
+    actionLabel: 'Start Trip',
   },
   'in-progress': {
     label: 'On trip',
     subtitle: 'Rider is onboard. Follow the route to dropoff and complete the trip.',
     accentColor: '#F59E0B',
-    actionLabel: 'Complete trip',
+    actionLabel: 'Complete Trip',
   },
   completed: {
     label: 'Trip completed',
     subtitle: 'Ride payout posted. Wrap up this trip, then go back online for the next request.',
     accentColor: '#14B8A6',
-    actionLabel: 'Ready for next ride',
+    actionLabel: 'Done',
   },
 };
 
