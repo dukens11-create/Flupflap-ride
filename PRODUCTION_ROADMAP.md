@@ -1,55 +1,38 @@
-# Production Readiness Analysis (Current Repository State)
+# Production Roadmap
 
-This file reflects what is currently implemented in `dukens11-create/drive` and what is still missing or incomplete for a production-ready ride-sharing platform.
+## Implemented baseline components
 
-## Implemented Foundations
+- Backend API, driver mobile app, passenger mobile app, passenger web app, and admin dashboard exist in this repository.
+- CI workflows run backend, driver mobile, passenger mobile, web, and admin validation on pull requests.
 
-- **Core backend API** (auth, rides, drivers, wallet/payments, KYC, safety, support, admin, marketplace) in the repository root.
-- **Driver mobile app** (`mobile/`), **passenger mobile app** (`mobile-passenger/`), **admin app** (`admin/`), and **passenger web app** (`web/`).
-- **Baseline CI/CD scaffolding** (`.github/workflows/ci.yml`, `codeql.yml`, `release.yml`, `deploy.yml`) and local container stack (`docker-compose.yml`).
-- **Basic security controls** (helmet, rate limiting, JWT, RBAC-style checks in services/routes).
+## Still missing for a complete ride-sharing platform
 
-## Missing or Incomplete for Production
+### 1) Production-grade core infrastructure
 
-### 1) Durable data + operational reliability
-- Backend runtime state is still backed by in-process maps/arrays with optional file persistence (`data.store.ts`, `env.ts` with `DATA_STORE_MODE` defaulting to `memory`).
-- No active production DB model/migrations in runtime path (there is a standalone excluded `seed.ts`, but API runtime does not use it).
-- No implemented backup/restore automation for a production datastore.
+- [ ] Replace the in-memory/file `data.store.ts` implementation with a real database and migration strategy.
+- [ ] Add durable queue/worker infrastructure for async jobs (payments reconciliation, notifications, fraud checks, compliance jobs).
+- [ ] Add environment-specific infrastructure definitions (staging/production IaC), not only app/container workflows.
 
-### 2) Third-party integrations are mostly stubs/mocks
-- Payments are marked as `stripe_mock` (`payments.service.ts`, `data.store.ts`) rather than a real PSP integration path.
-- Route ETA service is placeholder-level (`eta.service.ts` returns provider `mapbox_or_google` with synthetic polyline).
-- KYC provider session URL points to a local placeholder domain and generic webhook handling (`kyc.provider.ts`).
-- Mobile realtime trip feed is mock-driven (`mobile/src/services/realtime/mockDriveFeed.ts`, `mobile-passenger/src/services/realtime/mockDriveFeed.ts`).
-- Worker jobs currently log payloads only (no concrete dispatch/payout/notification processors) (`worker.ts`).
+### 2) Real provider integrations (currently partial/mock)
 
-### 3) Compliance/legal artifacts are placeholders
-- Legal/compliance docs are templates or checklist placeholders requiring additional implementation/review:
-  - `TERMS_TEMPLATE.md`
-  - `PRIVACY_TEMPLATE.md`
-  - `DRIVER_AGREEMENT_TEMPLATE.md`
-  - `COMPLIANCE_MATRIX.md`
-  - `SECURITY_CHECKLIST.md`
+- [ ] Implement a real KYC/background check provider integration (`kyc.provider.ts` is currently a placeholder that auto-approves).
+- [ ] Expand payment provider coverage beyond the current Stripe-focused path and wallet fallback.
+- [ ] Add full dispute/chargeback/refund lifecycle automation across providers.
 
-### 4) Security hardening remains incomplete
-- CORS is currently fully open (`app.ts` uses `cors()` and Socket.IO `origin: '*'`).
-- Security testing documentation exists, but executable security validation and policy enforcement are not fully codified in repository automation.
+### 3) Safety, fraud, and compliance hardening
 
-### 5) Performance/scale validation is not yet implemented
-- Performance and load testing are described as plans (`LOAD_TEST_PLAN.md`) without committed executable load-test suites in this repository.
-- Queue/worker topology exists, but production-grade backpressure/retry/observability flows are incomplete.
+- [ ] Complete fraud controls listed in `FRAUD_REVIEW.md` (velocity checks, device fingerprinting).
+- [ ] Complete security checklist controls in `SECURITY_CHECKLIST.md` (MFA enforcement, key rotation operations).
+- [ ] Finalize compliance readiness in `COMPLIANCE_MATRIX.md` (GDPR legal review and operational controls).
 
-### 6) CI reliability gaps still need investigation
-- Recent CI workflow runs show failures with zero jobs executed on some runs (GitHub Actions workflow run metadata), indicating pipeline reliability issues still require diagnosis.
+### 4) Product feature completeness gaps
 
-### 7) Deployment coverage is partial
-- Current deploy automation publishes backend container images (`.github/workflows/deploy.yml`), but full production deployment orchestration for admin/web/mobile clients and end-to-end environment promotion remains incomplete.
+- [ ] Replace driver-side mock dispatch generation in `mobile/src/context/DriveRealtimeContext.tsx` with fully live dispatch.
+- [ ] Replace admin KPI trend mock series in `admin/app/page.tsx` with backend-driven analytics/reporting data.
+- [ ] Complete launch and market-expansion execution playbooks (currently high-level placeholders only).
 
-## Launch-Critical Priorities (Recommended Order)
+### 5) Operational readiness
 
-1. Replace runtime data store with a production database + migrations + backup/restore.
-2. Complete real payment/maps/KYC/notification provider integrations (remove mock paths).
-3. Finalize legal/compliance/security controls (privacy, terms, data governance, restricted CORS, incident controls).
-4. Add executable load/security test suites and enforce them in CI.
-5. Stabilize CI runs and close workflow reliability gaps.
-6. Complete end-to-end deployment runbooks for backend + admin + web + mobile releases.
+- [ ] Add concrete runbooks for incident response, rollback drills, and on-call escalation.
+- [ ] Add production monitoring/alerting integrations (metrics, traces, and paging) with documented SLOs/SLIs.
+- [ ] Add regular load/performance test execution in CI/CD (not only a static load test plan document).
