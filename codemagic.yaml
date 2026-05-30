@@ -4,7 +4,7 @@ workflows:
     environment:
       groups:
         - expo_credentials
-      node: 20.11.1
+      node: 20.19.4
       vars:
         EAS_LOCAL_BUILD_SKIP_CLEANUP: "1" # Keep local build outputs so APK verification can inspect generated files.
     triggering:
