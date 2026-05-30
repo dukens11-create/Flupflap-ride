@@ -4,12 +4,15 @@ import { Image, Pressable, Switch, Text, View } from 'react-native';
 
 import { useAccessibilitySettings } from '../../context/AccessibilityContext';
 import { useDriveRealtime } from '../../context/DriveRealtimeContext';
+import { useLocale } from '../../context/LocaleContext';
+import { logDriverError } from '../../services/monitoring/telemetry';
 import { driverStatusMeta } from '../../utils/driveStatus';
 
 export const TopOverlay = () => {
   const router = useRouter();
   const { profile, activeRequest, activeTrip, requestTimeLeft, setOnline, error, onboardingRequired } = useDriveRealtime();
   const { highContrastEnabled, maxFontSizeMultiplier } = useAccessibilitySettings();
+  const { t } = useLocale();
   const displayStatus = activeTrip?.status ?? profile.status;
   const statusMeta = driverStatusMeta[displayStatus];
   const statusLabel = activeRequest && !activeTrip ? 'Incoming request' : statusMeta.label;
@@ -46,23 +49,32 @@ export const TopOverlay = () => {
 
         <View className="ml-2 items-center">
           <Text className={`mb-0.5 text-[10px] font-semibold uppercase tracking-wide ${highContrastEnabled ? 'text-white' : 'text-zinc-500 dark:text-zinc-400'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>
-            {profile.isOnline ? 'Online' : 'Offline'}
+            {profile.isOnline ? t('common.online') : t('common.offline')}
           </Text>
           <Switch
             value={profile.isOnline}
             onValueChange={(value) => void setOnline(value)}
             trackColor={{ false: '#A1A1AA', true: '#22C55E' }}
             thumbColor="#FFFFFF"
-            accessibilityLabel="Toggle driver online status"
+            accessibilityLabel={profile.isOnline ? 'Go offline' : 'Go online'}
+            accessibilityHint="Toggles your driver availability for incoming ride requests"
             accessibilityRole="switch"
           />
         </View>
 
         <Pressable
           className={`ml-2 h-9 w-9 items-center justify-center rounded-full ${highContrastEnabled ? 'border border-white bg-black' : 'bg-zinc-100 dark:bg-zinc-800'}`}
+          onPress={() => {
+            try {
+              router.push('/(tabs)/inbox');
+            } catch (err) {
+              logDriverError('open_inbox', err);
+            }
+          }}
           accessibilityRole="button"
-          accessibilityLabel="View notifications"
-          onPress={() => router.push('/(tabs)/inbox')}
+          accessibilityLabel="Open inbox"
+          accessibilityHint="View notifications and support updates"
+          hitSlop={8}
         >
           <Ionicons name="notifications-outline" size={18} color={highContrastEnabled ? '#FFFFFF' : profile.isOnline ? '#0f172a' : '#6b7280'} />
         </Pressable>

@@ -2,6 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { useAccessibilitySettings } from '../../context/AccessibilityContext';
 import { useDriveRealtime } from '../../context/DriveRealtimeContext';
+import { useLocale } from '../../context/LocaleContext';
 import { driverStatusMeta, tripStatusOrder, tripStepLabels } from '../../utils/driveStatus';
 
 const COLOR_STEP_INACTIVE = '#E4E4E7'; // zinc-200
@@ -9,6 +10,7 @@ const COLOR_STEP_INACTIVE = '#E4E4E7'; // zinc-200
 export const RideRequestCard = () => {
   const { activeRequest, activeTrip, requestTimeLeft, acceptRequest, declineRequest, advanceTrip } = useDriveRealtime();
   const { highContrastEnabled, maxFontSizeMultiplier } = useAccessibilitySettings();
+  const { formatCurrency, formatNumber, formatTime } = useLocale();
 
   if (!activeRequest && !activeTrip) {
     return null;
@@ -38,9 +40,9 @@ export const RideRequestCard = () => {
             <Text className={`mt-0.5 text-sm ${highContrastEnabled ? 'text-white' : 'text-zinc-600 dark:text-zinc-300'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>Drop-off · {activeTrip.dropoffAddress}</Text>
           </View>
           <View className="items-end">
-            <Text className="text-base font-bold text-emerald-600">${activeTrip.estimatedFare.toFixed(2)}</Text>
-            <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-300">{activeTrip.tripDistanceKm} km</Text>
-            <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-300">⭐ {activeTrip.riderRating.toFixed(1)}</Text>
+            <Text className="text-base font-bold text-emerald-600">{formatCurrency(activeTrip.estimatedFare)}</Text>
+            <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-300">{formatNumber(activeTrip.tripDistanceKm, { maximumFractionDigits: 1 })} km</Text>
+            <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-300">⭐ {formatNumber(activeTrip.riderRating, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</Text>
           </View>
         </View>
 
@@ -91,14 +93,20 @@ export const RideRequestCard = () => {
                   <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-300">{event.message}</Text>
                 </View>
                 <Text className="text-[11px] uppercase tracking-wide text-zinc-400">
-                  {new Date(event.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  {formatTime(event.createdAt)}
                 </Text>
               </View>
             </View>
           ))}
         </View>
 
-        <Pressable className="mt-4 rounded-2xl px-4 py-3.5" style={{ backgroundColor: statusMeta.accentColor }} onPress={advanceTrip} accessibilityRole="button" accessibilityLabel={statusMeta.actionLabel}>
+        <Pressable
+          className="mt-4 rounded-2xl px-4 py-3.5"
+          style={{ backgroundColor: statusMeta.accentColor }}
+          onPress={advanceTrip}
+          accessibilityRole="button"
+          accessibilityLabel={statusMeta.actionLabel}
+        >
           <Text className="text-center text-base font-bold text-white" maxFontSizeMultiplier={maxFontSizeMultiplier}>{statusMeta.actionLabel}</Text>
         </Pressable>
       </View>
@@ -118,7 +126,7 @@ export const RideRequestCard = () => {
           </View>
           <Text className={`mt-3 text-base font-semibold ${highContrastEnabled ? 'text-white' : 'text-zinc-950 dark:text-zinc-100'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>{request.riderName}</Text>
           <Text className={`mt-1 text-sm ${highContrastEnabled ? 'text-white' : 'text-zinc-600 dark:text-zinc-300'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>
-            {request.rideType.toUpperCase()} · Pickup ETA {request.pickupEtaMinutes} min · Trip payout ${request.estimatedFare.toFixed(2)}
+            {request.rideType.toUpperCase()} · Pickup ETA {formatNumber(request.pickupEtaMinutes)} min · Trip payout {formatCurrency(request.estimatedFare)}
           </Text>
           <Text className="mt-2 text-xs uppercase tracking-[0.18em] text-zinc-400">Pickup</Text>
           <Text className="mt-1 text-sm text-zinc-700 dark:text-zinc-200">{request.pickupAddress}</Text>
@@ -132,7 +140,7 @@ export const RideRequestCard = () => {
           <Text className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: urgentSeconds ? '#EF4444' : '#16A34A' }}>
             Respond in
           </Text>
-          <Text className="mt-1 text-2xl font-bold" style={{ color: urgentSeconds ? '#DC2626' : '#15803D' }}>
+          <Text className="mt-1 text-2xl font-bold" style={{ color: urgentSeconds ? '#DC2626' : '#15803D' }} accessibilityLiveRegion="polite">
             {requestTimeLeft}s
           </Text>
         </View>
@@ -140,11 +148,11 @@ export const RideRequestCard = () => {
 
       {/* Trip details strip */}
       <View className="mt-4 flex-row justify-between rounded-2xl bg-zinc-100 p-3 dark:bg-zinc-800">
-        <InfoItem label="Pickup ETA" value={`${request.pickupEtaMinutes} min`} />
-        <InfoItem label="Trip" value={`${request.tripDistanceKm} km`} />
-        <InfoItem label="Fare" value={`$${request.estimatedFare.toFixed(2)}`} />
-        <InfoItem label="Surge" value={`x${request.surgeMultiplier.toFixed(1)}`} />
-        <InfoItem label="Rating" value={`⭐ ${request.riderRating.toFixed(1)}`} />
+        <InfoItem label="Pickup ETA" value={`${formatNumber(request.pickupEtaMinutes)} min`} />
+        <InfoItem label="Trip" value={`${formatNumber(request.tripDistanceKm, { maximumFractionDigits: 1 })} km`} />
+        <InfoItem label="Fare" value={formatCurrency(request.estimatedFare)} />
+        <InfoItem label="Surge" value={`x${formatNumber(request.surgeMultiplier, { maximumFractionDigits: 1 })}`} />
+        <InfoItem label="Rating" value={`⭐ ${formatNumber(request.riderRating, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`} />
       </View>
 
       <View className="mt-4 rounded-2xl bg-zinc-100 p-3 dark:bg-zinc-800">
