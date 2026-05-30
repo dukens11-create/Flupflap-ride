@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Image, Pressable, Switch, Text, View } from 'react-native';
 
+import { useAccessibilitySettings } from '../../context/AccessibilityContext';
 import { useDriveRealtime } from '../../context/DriveRealtimeContext';
 import { driverStatusMeta } from '../../utils/driveStatus';
 
 export const TopOverlay = () => {
+  const router = useRouter();
   const { profile, activeRequest, activeTrip, requestTimeLeft, setOnline, error, onboardingRequired } = useDriveRealtime();
+  const { highContrastEnabled, maxFontSizeMultiplier } = useAccessibilitySettings();
   const displayStatus = activeTrip?.status ?? profile.status;
   const statusMeta = driverStatusMeta[displayStatus];
   const statusLabel = activeRequest && !activeTrip ? 'Incoming request' : statusMeta.label;
@@ -19,27 +23,29 @@ export const TopOverlay = () => {
   return (
     <View className="absolute left-4 right-4 top-14 z-20">
       {/* Main driver card */}
-      <View className="flex-row items-center rounded-3xl bg-white/95 px-4 py-3 shadow-soft dark:bg-zinc-900/95">
+      <View className={`flex-row items-center rounded-3xl px-4 py-3 shadow-soft ${highContrastEnabled ? 'border border-white bg-black' : 'bg-white/95 dark:bg-zinc-900/95'}`}>
         <Image
           source={profile.avatarUrl ? { uri: profile.avatarUrl } : require('../../../assets/icon.png')}
           className="h-12 w-12 rounded-full"
+          accessibilityLabel={`${profile.name} profile picture`}
+          accessible
         />
 
         <View className="ml-3 flex-1">
           <View className="flex-row items-center gap-2">
-            <Text className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">{profile.name}</Text>
+            <Text className={`text-lg font-semibold ${highContrastEnabled ? 'text-white' : 'text-zinc-950 dark:text-zinc-100'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>{profile.name}</Text>
           </View>
           <View className="mt-1 flex-row items-center gap-2">
             <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: accentColor }} />
-            <Text className="text-xs font-medium text-zinc-700 dark:text-zinc-200">{statusLabel}</Text>
+            <Text className={`text-xs font-medium ${highContrastEnabled ? 'text-white' : 'text-zinc-700 dark:text-zinc-200'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>{statusLabel}</Text>
           </View>
-          <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-300" numberOfLines={1}>
+          <Text className={`mt-1 text-xs ${highContrastEnabled ? 'text-white' : 'text-zinc-500 dark:text-zinc-300'}`} numberOfLines={1} maxFontSizeMultiplier={maxFontSizeMultiplier}>
             {statusSubtitle}
           </Text>
         </View>
 
         <View className="ml-2 items-center">
-          <Text className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          <Text className={`mb-0.5 text-[10px] font-semibold uppercase tracking-wide ${highContrastEnabled ? 'text-white' : 'text-zinc-500 dark:text-zinc-400'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>
             {profile.isOnline ? 'Online' : 'Offline'}
           </Text>
           <Switch
@@ -47,19 +53,26 @@ export const TopOverlay = () => {
             onValueChange={(value) => void setOnline(value)}
             trackColor={{ false: '#A1A1AA', true: '#22C55E' }}
             thumbColor="#FFFFFF"
+            accessibilityLabel="Toggle driver online status"
+            accessibilityRole="switch"
           />
         </View>
 
-        <Pressable className="ml-2 h-9 w-9 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
-          <Ionicons name="notifications-outline" size={18} color={profile.isOnline ? '#0f172a' : '#6b7280'} />
+        <Pressable
+          className={`ml-2 h-9 w-9 items-center justify-center rounded-full ${highContrastEnabled ? 'border border-white bg-black' : 'bg-zinc-100 dark:bg-zinc-800'}`}
+          accessibilityRole="button"
+          accessibilityLabel="View notifications"
+          onPress={() => router.push('/(tabs)/inbox')}
+        >
+          <Ionicons name="notifications-outline" size={18} color={highContrastEnabled ? '#FFFFFF' : profile.isOnline ? '#0f172a' : '#6b7280'} />
         </Pressable>
       </View>
 
       {/* Error / onboarding banner */}
       {(error || onboardingRequired) ? (
-        <View className="mt-2 flex-row items-center gap-2 rounded-2xl bg-rose-500/90 px-4 py-2">
+        <View className={`mt-2 flex-row items-center gap-2 rounded-2xl px-4 py-2 ${highContrastEnabled ? 'border border-white bg-black' : 'bg-rose-500/90'}`}>
           <Ionicons name="alert-circle-outline" size={14} color="#FFFFFF" />
-          <Text className="flex-1 text-xs font-medium text-white">
+          <Text className="flex-1 text-xs font-medium text-white" maxFontSizeMultiplier={maxFontSizeMultiplier}>
             {error || 'Finish onboarding to unlock online mode.'}
           </Text>
         </View>

@@ -8,6 +8,7 @@ import { BottomStatsPanel } from '../../src/components/drive/BottomStatsPanel';
 import { MapOverlayControls } from '../../src/components/drive/MapOverlayControls';
 import { RideRequestCard } from '../../src/components/drive/RideRequestCard';
 import { TopOverlay } from '../../src/components/drive/TopOverlay';
+import { useAccessibilitySettings } from '../../src/context/AccessibilityContext';
 import { useDriveRealtime } from '../../src/context/DriveRealtimeContext';
 import type { LatLng } from '../../src/types/drive';
 import { buildNavigationRoute, distanceKmBetween } from '../../src/utils/navigation';
@@ -32,6 +33,7 @@ export default function DriveHomeScreen() {
   const mapRef = useRef<MapView | null>(null);
   const scheme = useColorScheme();
   const router = useRouter();
+  const { highContrastEnabled, maxFontSizeMultiplier } = useAccessibilitySettings();
   const [isSupportVisible, setIsSupportVisible] = useState(false);
   const { location, nearbyRequests, activeRequest, activeTrip, error, profile } = useDriveRealtime();
   const lastCameraCenterRef = useRef(location);
@@ -139,7 +141,7 @@ export default function DriveHomeScreen() {
   };
 
   return (
-    <View className="flex-1 bg-zinc-950">
+    <View className={`flex-1 ${highContrastEnabled ? 'bg-black' : 'bg-zinc-950'}`}>
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
@@ -158,7 +160,7 @@ export default function DriveHomeScreen() {
         moveOnMarkerPress={false}
         toolbarEnabled={false}
         mapPadding={{ top: 180, right: 24, bottom: 360, left: 24 }}
-        customMapStyle={scheme === 'dark' ? darkMapStyle : undefined}
+        customMapStyle={highContrastEnabled ? highContrastMapStyle : scheme === 'dark' ? darkMapStyle : undefined}
       >
         <Marker
           coordinate={location}
@@ -211,22 +213,22 @@ export default function DriveHomeScreen() {
 
       <TopOverlay />
       {routeData ? (
-        <View className="absolute left-4 right-20 top-44 z-30 rounded-2xl bg-white/95 px-4 py-3 shadow-soft dark:bg-zinc-900/95">
-          <Text className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-300">Turn-by-turn</Text>
-          <Text className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{routeData.nextInstruction}</Text>
-          <Text className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+        <View className={`absolute left-4 right-20 top-44 z-30 rounded-2xl px-4 py-3 shadow-soft ${highContrastEnabled ? 'border border-white bg-black' : 'bg-white/95 dark:bg-zinc-900/95'}`}>
+          <Text className={`text-xs font-semibold uppercase tracking-wider ${highContrastEnabled ? 'text-white' : 'text-zinc-500 dark:text-zinc-300'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>Turn-by-turn</Text>
+          <Text className={`mt-1 text-sm font-semibold ${highContrastEnabled ? 'text-white' : 'text-zinc-900 dark:text-zinc-100'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>{routeData.nextInstruction}</Text>
+          <Text className={`mt-1 text-xs ${highContrastEnabled ? 'text-white' : 'text-zinc-600 dark:text-zinc-300'}`} maxFontSizeMultiplier={maxFontSizeMultiplier}>
             {routeData.remainingDistanceKm.toFixed(1)} km · {routeData.remainingDurationMinutes} min
           </Text>
         </View>
       ) : null}
       {isSupportVisible ? (
-        <View className="absolute left-4 right-20 top-36 z-30 rounded-3xl border border-zinc-800 bg-zinc-950/95 px-4 py-4">
-          <Text className="text-sm font-semibold text-zinc-100">Safety & support</Text>
-          <Text className="mt-2 text-xs text-zinc-300">Use SOS for emergencies, share active trips with a trusted contact, and open Inbox for follow-up support.</Text>
+        <View className={`absolute left-4 right-20 top-36 z-30 rounded-3xl px-4 py-4 ${highContrastEnabled ? 'border border-white bg-black' : 'border border-zinc-800 bg-zinc-950/95'}`}>
+          <Text className="text-sm font-semibold text-zinc-100" maxFontSizeMultiplier={maxFontSizeMultiplier}>Safety & support</Text>
+          <Text className="mt-2 text-xs text-zinc-300" maxFontSizeMultiplier={maxFontSizeMultiplier}>Use SOS for emergencies, share active trips with a trusted contact, and open Inbox for follow-up support.</Text>
           <View className="mt-3 gap-2">
-            <Text className="text-xs text-zinc-400">• Pull over before responding to an incident.</Text>
-            <Text className="text-xs text-zinc-400">• Report harassment, crashes, or unsafe riders in Inbox.</Text>
-            <Text className="text-xs text-zinc-400">• Trip details can be shared even before pickup starts.</Text>
+            <Text className="text-xs text-zinc-400" maxFontSizeMultiplier={maxFontSizeMultiplier}>• Pull over before responding to an incident.</Text>
+            <Text className="text-xs text-zinc-400" maxFontSizeMultiplier={maxFontSizeMultiplier}>• Report harassment, crashes, or unsafe riders in Inbox.</Text>
+            <Text className="text-xs text-zinc-400" maxFontSizeMultiplier={maxFontSizeMultiplier}>• Trip details can be shared even before pickup starts.</Text>
           </View>
           <View className="mt-4 flex-row gap-3">
             <Pressable
@@ -235,11 +237,13 @@ export default function DriveHomeScreen() {
                 setIsSupportVisible(false);
                 router.push('/(tabs)/inbox');
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Open support inbox"
             >
-              <Text className="text-center text-sm font-semibold text-white">Open inbox</Text>
+              <Text className="text-center text-sm font-semibold text-white" maxFontSizeMultiplier={maxFontSizeMultiplier}>Open inbox</Text>
             </Pressable>
-            <Pressable className="rounded-2xl border border-zinc-700 px-3 py-3" onPress={() => setIsSupportVisible(false)}>
-              <Text className="text-sm font-semibold text-zinc-100">Dismiss</Text>
+            <Pressable className={`rounded-2xl px-3 py-3 ${highContrastEnabled ? 'border border-white' : 'border border-zinc-700'}`} onPress={() => setIsSupportVisible(false)} accessibilityRole="button" accessibilityLabel="Dismiss support panel">
+              <Text className="text-sm font-semibold text-zinc-100" maxFontSizeMultiplier={maxFontSizeMultiplier}>Dismiss</Text>
             </Pressable>
           </View>
         </View>
@@ -266,6 +270,7 @@ export default function DriveHomeScreen() {
           });
         }}
         showOverview={Boolean(routeData)}
+        highContrastEnabled={highContrastEnabled}
       />
       <RideRequestCard />
       <BottomStatsPanel />
@@ -280,4 +285,13 @@ const darkMapStyle = [
   { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#374151' }] },
   { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#4b5563' }] },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
+];
+
+const highContrastMapStyle = [
+  { elementType: 'geometry', stylers: [{ color: '#000000' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#000000' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#FFFFFF' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1F2937' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#FACC15' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#111827' }] },
 ];

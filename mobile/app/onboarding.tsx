@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { PLACEHOLDER_DRIVER_DOCUMENTS, REQUIRED_DRIVER_DOCUMENTS } from '../src/constants/onboarding';
 import { kycApi } from '../src/services/api/kycApi';
+import { useAccessibilitySettings } from '../src/context/AccessibilityContext';
 import { useAuth } from '../src/context/AuthContext';
 
 const FALLBACK_APPLICATION_LOCATION = { lat: 37.7749, lng: -122.4194 };
@@ -17,6 +18,7 @@ const VERIFICATION_CHECKLIST = ['Government ID and driver profile review', 'Driv
 
 export default function OnboardingScreen() {
   const { state, session, onboardingProfile, onboardingStep, completeApplication, submitDocuments, refreshOnboarding, errorMessage, isOnboardingLoading } = useAuth();
+  const { maxFontSizeMultiplier } = useAccessibilitySettings();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
   const documentsUploaded = (onboardingProfile?.documents ?? []).length;
@@ -90,8 +92,8 @@ export default function OnboardingScreen() {
 
   return (
     <ScrollView className="flex-1 bg-zinc-950" contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 64 }}>
-      <Text className="text-3xl font-bold text-zinc-100">Driver onboarding</Text>
-      <Text className="mt-2 text-sm text-zinc-400">Complete each review step once so you can start driving with trust and safety tools already in place.</Text>
+      <Text className="text-3xl font-bold text-zinc-100" accessibilityRole="header" maxFontSizeMultiplier={maxFontSizeMultiplier}>Driver onboarding</Text>
+      <Text className="mt-2 text-sm text-zinc-400" maxFontSizeMultiplier={maxFontSizeMultiplier}>Complete each review step once so you can start driving with trust and safety tools already in place.</Text>
 
       <View className="mt-6 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-4">
         <Text className="text-sm font-semibold text-emerald-300">What happens before your first trip</Text>
@@ -142,16 +144,17 @@ export default function OnboardingScreen() {
       ) : null}
 
       {onboardingStep === 'application' ? (
-        <ActionButton title="Submit application" loading={isSubmitting} onPress={handleApply} />
+        <ActionButton title="Submit application" loading={isSubmitting} onPress={handleApply} maxFontSizeMultiplier={maxFontSizeMultiplier} />
       ) : null}
       {onboardingStep === 'documents' ? (
-        <ActionButton title="Upload required documents" loading={isSubmitting} onPress={handleUploadDocuments} />
+        <ActionButton title="Upload required documents" loading={isSubmitting} onPress={handleUploadDocuments} maxFontSizeMultiplier={maxFontSizeMultiplier} />
       ) : null}
       {onboardingStep === 'kyc' ? (
         <ActionButton
           title={onboardingProfile?.verificationState === 'kyc_pending' ? 'Refresh KYC status' : 'Create KYC session'}
           loading={isSubmitting || isOnboardingLoading}
           onPress={handleRefreshKycStatus}
+          maxFontSizeMultiplier={maxFontSizeMultiplier}
         />
       ) : null}
 
@@ -169,8 +172,18 @@ const StepRow = ({ title, value, description, active }: { title: string; value: 
   </View>
 );
 
-const ActionButton = ({ title, loading, onPress }: { title: string; loading: boolean; onPress: () => void }) => (
-  <Pressable className="mt-6 rounded-2xl bg-emerald-500 px-4 py-3" disabled={loading} onPress={onPress}>
-    <Text className="text-center font-semibold text-white">{loading ? 'Working...' : title}</Text>
+const ActionButton = ({
+  title,
+  loading,
+  onPress,
+  maxFontSizeMultiplier,
+}: {
+  title: string;
+  loading: boolean;
+  onPress: () => void;
+  maxFontSizeMultiplier: number;
+}) => (
+  <Pressable className="mt-6 rounded-2xl bg-emerald-500 px-4 py-3" disabled={loading} onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
+    <Text className="text-center font-semibold text-white" maxFontSizeMultiplier={maxFontSizeMultiplier}>{loading ? 'Working...' : title}</Text>
   </Pressable>
 );
