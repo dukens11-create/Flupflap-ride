@@ -7,8 +7,8 @@ import { useAuth } from '@/components/providers';
 export default function LoginPage() {
   const router = useRouter();
   const { login, session, ready } = useAuth();
-  const [email, setEmail] = useState('admin@flupflap.com');
-  const [password, setPassword] = useState('change_me_admin_password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

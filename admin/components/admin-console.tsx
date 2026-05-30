@@ -433,7 +433,7 @@ export function AdminSectionPage({ section }: { section: SectionKey }) {
                     </div>
                     <Badge tone={String(ride.status) === 'canceled' ? 'danger' : String(ride.status) === 'completed' ? 'success' : 'warning'}>{String(ride.status)}</Badge>
                   </div>
-                  <div className="mt-3 grid gap-3 md:grid-cols-3 text-sm text-[var(--muted)]">
+                  <div className="mt-3 grid gap-3 text-sm text-[var(--muted)] md:grid-cols-3">
                     <div>Fare {formatCurrency(Number(ride.fareEstimate || 0) * 100)}</div>
                     <div>ETA {String(ride.minutes || 0)} min</div>
                     <div>Distance {String(ride.miles || 0)} mi</div>

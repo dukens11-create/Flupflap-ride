@@ -13,10 +13,12 @@ import {
   type PlatformFeatureFlag,
   type PlatformSettings,
   type Promo,
-  type Ticket
+  type User
 } from './data.store';
 
-function sanitizeUser(user: any) {
+type SafeUser = Omit<User, 'password'> & { suspended?: boolean };
+
+function sanitizeUser(user: (User & { suspended?: boolean }) | undefined): SafeUser | undefined {
   if (!user) return undefined;
   const { password, ...safe } = user;
   return safe;
@@ -88,13 +90,18 @@ function getSettings() {
   };
 }
 
-function normalizeFeatureFlags(flags: any, fallback: PlatformFeatureFlag[]) {
+function isFeatureFlag(value: unknown): value is Partial<PlatformFeatureFlag> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function normalizeFeatureFlags(flags: unknown, fallback: PlatformFeatureFlag[]) {
   if (!Array.isArray(flags)) return fallback;
   return flags
+    .filter(isFeatureFlag)
     .map(flag => ({
-      key: String(flag?.key || '').trim(),
-      label: String(flag?.label || flag?.key || '').trim(),
-      enabled: Boolean(flag?.enabled)
+      key: String(flag.key || '').trim(),
+      label: String(flag.label || flag.key || '').trim(),
+      enabled: Boolean(flag.enabled)
     }))
     .filter(flag => flag.key && flag.label);
 }
