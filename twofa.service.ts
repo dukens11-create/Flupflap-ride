@@ -219,13 +219,29 @@ export async function getTotpStatus(body: any) {
 // ─── SMS OTP (for phone-based 2FA) ───────────────────────────────────────────
 
 const smsOtpStore = new Map<string, { otp: string; expiresAt: number }>();
+const smsOtpRateLimit = new Map<string, { count: number; windowStart: number }>();
+const SMS_OTP_MAX_PER_WINDOW = 3;
+const SMS_OTP_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
 export async function sendSmsOtpCode(body: any) {
   const phone = body?.phone;
   if (!phone) return { module: '2fa', action: 'sms-otp', error: 'phone required' };
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  smsOtpStore.set(phone, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+  // Rate limiting: max 3 OTP requests per 10-minute window per phone number
+  const now = Date.now();
+  const rl = smsOtpRateLimit.get(phone);
+  if (rl && now - rl.windowStart < SMS_OTP_WINDOW_MS) {
+    if (rl.count >= SMS_OTP_MAX_PER_WINDOW) {
+      return { module: '2fa', action: 'sms-otp', error: 'too many OTP requests, please wait before trying again' };
+    }
+    rl.count++;
+  } else {
+    smsOtpRateLimit.set(phone, { count: 1, windowStart: now });
+  }
+
+  // Use cryptographically secure random number for OTP
+  const otp = (randomBytes(3).readUIntBE(0, 3) % 900000 + 100000).toString();
+  smsOtpStore.set(phone, { otp, expiresAt: now + SMS_OTP_WINDOW_MS });
 
   await sendSmsOtp(phone, otp);
 

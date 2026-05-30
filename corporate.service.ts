@@ -103,6 +103,7 @@ export async function tagRideAsCorporate(body: any) {
   const account = getCorporateAccountForEmployee(employeeId);
   if (!account) return { module: 'corporate', action: 'tag-ride', error: 'no corporate account for this employee' };
 
+  // ride.fareEstimate is stored in dollars; convert to cents for billing
   const billableCents = Math.round((ride.fareEstimate || 0) * 100);
   if (account.usedCreditCents + billableCents > account.creditLimitCents) {
     return { module: 'corporate', action: 'tag-ride', error: 'corporate credit limit exceeded' };
