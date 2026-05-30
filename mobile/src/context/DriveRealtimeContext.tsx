@@ -128,6 +128,8 @@ const mapRideToHistory = (ride: RideSummary): RideHistoryItem => ({
   route: `${formatCoordinate(ride.pickupLat, ride.pickupLng)} → ${formatCoordinate(ride.dropoffLat, ride.dropoffLng)}`,
   fare: Number(ride.fareEstimate.toFixed(2)),
   timeLabel: new Date(ride.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+  miles: Number(ride.miles.toFixed(1)),
+  date: new Date(ride.updatedAt).toLocaleDateString(),
 });
 
 const mapRideToRequest = (ride: RideSummary): RideRequest => {
