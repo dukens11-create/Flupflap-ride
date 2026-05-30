@@ -46,16 +46,14 @@ const DriveRealtimeContext = createContext<DriveContextValue | undefined>(undefi
 
 const HOURS_INCREMENT_PER_TICK = 0.01;
 const DATA_REFRESH_INTERVAL_MS = 6000;
-<<<<<<< HEAD
 const LOCATION_SEND_INTERVAL_MS = 3000;
 const LOCATION_SEND_DISTANCE_METERS = 8;
 const MAX_LOCATION_ACCURACY_METERS = 90;
-=======
 const REQUEST_RESPONSE_WINDOW_MS = 30_000;
 const REQUEST_EXPIRATION_SECONDS = 18;
 const MOCK_REQUEST_PREFIX = 'mock-request-';
-const LOCATION_UPDATE_INTERVAL_MS = 4000;
-const LOCATION_UPDATE_DISTANCE_METERS = 8;
+const LOCATION_UPDATE_INTERVAL_MS = 2000;
+const LOCATION_UPDATE_DISTANCE_METERS = 2;
 type PendingRideRequest = Omit<RideRequest, 'expiresAt'>;
 
 type DriverNotification = {
@@ -64,7 +62,6 @@ type DriverNotification = {
   body: string;
   createdAt: string;
 };
->>>>>>> origin/main
 
 const defaultProfile: DriverProfile = {
   id: 'driver',
@@ -228,15 +225,12 @@ const toErrorMessage = (error: unknown) => {
 export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode }) => {
   const { state, session, onboardingStep } = useAuth();
   const refreshInFlightRef = useRef(false);
-<<<<<<< HEAD
   const lastLocationPushRef = useRef<LatLng | null>(null);
   const lastLocationPushAtRef = useRef(0);
-=======
   const handledRequestIdsRef = useRef(new Set<string>());
   const previousTripRef = useRef<{ rideId: string; status: ActiveTrip['status'] } | null>(null);
   const lastIncomingRequestIdRef = useRef<string | null>(null);
   const suppressedTripAlertRef = useRef<string | null>(null);
->>>>>>> origin/main
   const [profile, setProfile] = useState<DriverProfile>(defaultProfile);
   const [metrics, setMetrics] = useState<DriverMetrics>(defaultMetrics);
   const [location, setLocation] = useState<LatLng>(getSeedLocation());
@@ -403,16 +397,10 @@ export const DriveRealtimeProvider = ({ children }: { children: React.ReactNode 
 
       watcher = await Location.watchPositionAsync(
         {
-<<<<<<< HEAD
           accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 2000,
-          distanceInterval: 2,
-          mayShowUserSettingsDialog: true,
-=======
-          accuracy: Location.Accuracy.Balanced,
           timeInterval: LOCATION_UPDATE_INTERVAL_MS,
           distanceInterval: LOCATION_UPDATE_DISTANCE_METERS,
->>>>>>> origin/main
+          mayShowUserSettingsDialog: true,
         },
         (update) => {
           if (typeof update.coords.accuracy === 'number' && update.coords.accuracy > MAX_LOCATION_ACCURACY_METERS) {

@@ -1,17 +1,31 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
-<<<<<<< HEAD
-type Props = {
+type MapOverlayControlsProps = {
+  onEmergency: () => void;
   onRecenter: () => void;
+  onShareTrip: () => void;
+  onSupport: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onOverview: () => void;
   showOverview?: boolean;
 };
 
-export const MapOverlayControls = ({ onRecenter, onZoomIn, onZoomOut, onOverview, showOverview = false }: Props) => (
+export const MapOverlayControls = ({
+  onEmergency,
+  onRecenter,
+  onShareTrip,
+  onSupport,
+  onZoomIn,
+  onZoomOut,
+  onOverview,
+  showOverview = false,
+}: MapOverlayControlsProps) => (
   <View className="absolute bottom-80 right-4 z-20 gap-3">
+    <QuickActionButton tone="danger" label="SOS" icon="warning" onPress={onEmergency} />
+    <QuickActionButton tone="neutral" label="Share" icon="share-social" onPress={onShareTrip} />
+    <QuickActionButton tone="neutral" label="Help" icon="help-buoy" onPress={onSupport} />
     {showOverview ? (
       <Pressable
         className="h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-soft dark:bg-zinc-900"
@@ -32,20 +46,6 @@ export const MapOverlayControls = ({ onRecenter, onZoomIn, onZoomOut, onOverview
     >
       <Ionicons name="remove" size={20} color="#0F172A" />
     </Pressable>
-=======
-type MapOverlayControlsProps = {
-  onEmergency: () => void;
-  onRecenter: () => void;
-  onShareTrip: () => void;
-  onSupport: () => void;
-};
-
-export const MapOverlayControls = ({ onEmergency, onRecenter, onShareTrip, onSupport }: MapOverlayControlsProps) => (
-  <View className="absolute bottom-80 right-4 z-20 gap-3">
-    <QuickActionButton tone="danger" label="SOS" icon="warning" onPress={onEmergency} />
-    <QuickActionButton tone="neutral" label="Share" icon="share-social" onPress={onShareTrip} />
-    <QuickActionButton tone="neutral" label="Help" icon="help-buoy" onPress={onSupport} />
->>>>>>> origin/main
     <Pressable
       className="h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-soft dark:bg-zinc-900"
       onPress={onRecenter}

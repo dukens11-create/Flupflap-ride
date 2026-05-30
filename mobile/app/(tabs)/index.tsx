@@ -1,14 +1,8 @@
-<<<<<<< HEAD
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Text, useColorScheme, View } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-=======
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, Share, Text, useColorScheme, View } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
->>>>>>> origin/main
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { BottomStatsPanel } from '../../src/components/drive/BottomStatsPanel';
 import { MapOverlayControls } from '../../src/components/drive/MapOverlayControls';
@@ -216,7 +210,6 @@ export default function DriveHomeScreen() {
       </MapView>
 
       <TopOverlay />
-<<<<<<< HEAD
       {routeData ? (
         <View className="absolute left-4 right-20 top-44 z-30 rounded-2xl bg-white/95 px-4 py-3 shadow-soft dark:bg-zinc-900/95">
           <Text className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-300">Turn-by-turn</Text>
@@ -224,7 +217,8 @@ export default function DriveHomeScreen() {
           <Text className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
             {routeData.remainingDistanceKm.toFixed(1)} km · {routeData.remainingDurationMinutes} min
           </Text>
-=======
+        </View>
+      ) : null}
       {isSupportVisible ? (
         <View className="absolute left-4 right-20 top-36 z-30 rounded-3xl border border-zinc-800 bg-zinc-950/95 px-4 py-4">
           <Text className="text-sm font-semibold text-zinc-100">Safety & support</Text>
@@ -248,7 +242,6 @@ export default function DriveHomeScreen() {
               <Text className="text-sm font-semibold text-zinc-100">Dismiss</Text>
             </Pressable>
           </View>
->>>>>>> origin/main
         </View>
       ) : null}
       {error ? (
@@ -257,8 +250,10 @@ export default function DriveHomeScreen() {
         </View>
       ) : null}
       <MapOverlayControls
-<<<<<<< HEAD
         onRecenter={() => updateZoom(16)}
+        onEmergency={handleEmergency}
+        onShareTrip={() => void handleShareTrip()}
+        onSupport={() => setIsSupportVisible((current) => !current)}
         onZoomIn={() => updateZoom(zoomLevel + 1)}
         onZoomOut={() => updateZoom(zoomLevel - 1)}
         onOverview={() => {
@@ -271,12 +266,6 @@ export default function DriveHomeScreen() {
           });
         }}
         showOverview={Boolean(routeData)}
-=======
-        onEmergency={handleEmergency}
-        onRecenter={() => mapRef.current?.animateCamera({ center: location, zoom: 16 }, { duration: 450 })}
-        onShareTrip={() => void handleShareTrip()}
-        onSupport={() => setIsSupportVisible((current) => !current)}
->>>>>>> origin/main
       />
       <RideRequestCard />
       <BottomStatsPanel />
