@@ -65,8 +65,9 @@ export default function FoodOrderTrackingScreen() {
           const stepIndex = STATUS_SEQUENCE.indexOf(status);
           const isDone = stepIndex <= statusIndex;
           const isActive = stepIndex === statusIndex;
+          const isLast = index === ORDER_STEPS.length - 1;
           return (
-            <View key={status} className="flex-row items-center mb-3 last:mb-0">
+            <View key={status} className={`flex-row items-center ${isLast ? '' : 'mb-3'}`}>
               <View
                 className={`h-8 w-8 items-center justify-center rounded-full mr-3 ${
                   isDone ? 'bg-emerald-600' : 'bg-zinc-700'
