@@ -24,7 +24,7 @@ async function signupAndLogin(baseUrl: string, role: string = 'rider') {
   const res = await fetch(`${baseUrl}/api/auth/signup`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password: 'password123', role })
+    body: JSON.stringify({ email, password: 'Password123!', role })
   });
   const body = await res.json() as any;
   return { userId: body.user?.id, token: body.accessToken as string };

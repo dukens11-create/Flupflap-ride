@@ -14,6 +14,17 @@ export type User = {
   createdAt: string;
 };
 
+export type RefreshTokenSession = {
+  userId: string;
+  sessionId: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  ipAddress?: string;
+  userAgent?: string;
+  deviceName?: string;
+};
+
 export type RideStatus = 'requested' | 'accepted' | 'started' | 'completed' | 'canceled';
 
 export type RideEvent = {
@@ -505,7 +516,7 @@ function hashPassword(password: string) {
 
 type PersistedStore = {
   users: User[];
-  refreshTokens: Array<[string, { userId: string; expiresAt: string }]>;
+  refreshTokens: Array<[string, RefreshTokenSession]>;
   rides: Ride[];
   drivers: DriverProfile[];
   payments: Payment[];
@@ -604,7 +615,7 @@ function createPersistentArray<T>() {
 
 export const store = {
   users: new PersistentMap<string, User>(),
-  refreshTokens: new PersistentMap<string, { userId: string; expiresAt: string }>(),
+  refreshTokens: new PersistentMap<string, RefreshTokenSession>(),
   rides: new PersistentMap<string, Ride>(),
   drivers: new PersistentMap<string, DriverProfile>(),
   payments: new PersistentMap<string, Payment>(),
@@ -705,14 +716,26 @@ function hydrateStore() {
     for (const user of parsed.users || []) store.users.set(user.id, user);
     for (const [tokenHash, refreshToken] of parsed.refreshTokens || []) {
       if (typeof refreshToken === 'string') {
+        const hydratedAt = now();
         store.refreshTokens.set(tokenHash, {
           userId: refreshToken,
-          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString()
+          sessionId: makeId('session'),
+          createdAt: hydratedAt,
+          lastUsedAt: hydratedAt,
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
+          deviceName: 'legacy session'
         });
         continue;
       }
       if (refreshToken?.userId && refreshToken?.expiresAt) {
-        store.refreshTokens.set(tokenHash, refreshToken);
+        const hydratedAt = now();
+        store.refreshTokens.set(tokenHash, {
+          sessionId: refreshToken.sessionId || makeId('session'),
+          createdAt: refreshToken.createdAt || hydratedAt,
+          lastUsedAt: refreshToken.lastUsedAt || hydratedAt,
+          deviceName: refreshToken.deviceName || 'legacy session',
+          ...refreshToken
+        });
       }
     }
     for (const ride of parsed.rides || []) store.rides.set(ride.id, ride);
