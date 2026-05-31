@@ -118,7 +118,9 @@ test('GET / serves the professional dashboard login page', async () => {
     assert.match(body, /Drive Platform/);
     assert.match(body, /Admin Login/);
     assert.match(body, /Professional visibility across rides, drivers, support, and payments\./);
-    assert.equal((body.match(/class="dash-card"/g) ?? []).length, 4);
+    ['Active Drivers', 'Live Rides', 'Gross Revenue', 'Support Queue'].forEach(metricLabel => {
+      assert.match(body, new RegExp(metricLabel));
+    });
   });
 });
 
