@@ -93,7 +93,29 @@ test('GET /health returns service status payload', async () => {
     const response = await fetch(`${baseUrl}/health`);
     assert.equal(response.status, 200);
     const body = await response.json();
-    assert.deepEqual(body, { ok: true, service: 'flupflap-ride-v7' });
+    assert.deepEqual(body, { ok: true, service: 'drive-api' });
+  });
+});
+
+test('GET / serves login page from public assets', async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') || '', /text\/html/);
+    const body = await response.text();
+    assert.match(body, /<title>Drive Login<\/title>/);
+    assert.match(body, /id="login-form"/);
+  });
+});
+
+test('GET /dashboard.html serves dashboard page from public assets', async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/dashboard.html`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') || '', /text\/html/);
+    const body = await response.text();
+    assert.match(body, /<title>Drive Dashboard<\/title>/);
+    assert.match(body, /id="ride-form"/);
   });
 });
 

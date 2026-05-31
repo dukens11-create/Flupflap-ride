@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
+import path from 'path';
 import { Server } from 'socket.io';
 import { errorHandler } from './middleware';
 import { authRoutes, ridesRoutes, driversRoutes, paymentsRoutes, walletRoutes, kycRoutes, safetyRoutes, supportRoutes, merchantRoutes, marketplaceRoutes, adminRoutes, scheduledRoutes, subscriptionRoutes, loyaltyRoutes, corporateRoutes, carpoolRoutes, fraudRoutes, analyticsRoutes, twofaRoutes, restaurantsRoutes, chatRoutes, notificationsRoutes, mlRoutes, i18nRoutes } from './routes';
@@ -17,10 +18,14 @@ export function createApp() {
   app.use(cors());
   app.use(express.json({ limit: '10mb' }));
   app.use(rateLimit({ windowMs: 60_000, limit: 300 }));
+  const publicDir = path.resolve(process.cwd(), 'public');
+  app.use(express.static(publicDir));
 
-  app.get('/health', (_, res) => res.json({ ok: true, service: 'flupflap-ride-v7' }));
+  app.get('/health', (_, res) => res.json({ ok: true, service: 'drive-api' }));
   app.get('/livez', (_, res) => res.json({ ok: true }));
   app.get('/readyz', (_, res) => res.json({ ok: true, uptimeSeconds: parseFloat(process.uptime().toFixed(3)) }));
+  app.get('/', (_, res) => res.sendFile(path.join(publicDir, 'index.html')));
+  app.get('/dashboard', (_, res) => res.sendFile(path.join(publicDir, 'dashboard.html')));
 
   app.use('/api/auth', authRoutes);
   app.use('/api/rides', ridesRoutes);
