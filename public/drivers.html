@@ -78,7 +78,18 @@
             </div>
             <div class="mb-3">
               <label for="login-password" class="form-label">Password</label>
-              <input id="login-password" name="password" type="password" class="form-control" autocomplete="current-password" required />
+              <div class="password-field">
+                <input id="login-password" name="password" type="password" class="form-control" autocomplete="current-password" required />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  data-target="login-password"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                >
+                  <span class="password-toggle-icon" aria-hidden="true"></span>
+                </button>
+              </div>
             </div>
             <button id="login-btn" type="submit" class="btn btn-auth w-100">
               <span class="btn-text">Sign In</span>
@@ -93,7 +104,18 @@
             </div>
             <div class="mb-3">
               <label for="signup-password" class="form-label">Password</label>
-              <input id="signup-password" name="password" type="password" class="form-control" autocomplete="new-password" minlength="12" required />
+              <div class="password-field">
+                <input id="signup-password" name="password" type="password" class="form-control" autocomplete="new-password" minlength="12" required />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  data-target="signup-password"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                >
+                  <span class="password-toggle-icon" aria-hidden="true"></span>
+                </button>
+              </div>
               <div class="form-text">At least 12 characters with upper, lower, number, and symbol.</div>
             </div>
             <button id="signup-btn" type="submit" class="btn btn-auth w-100">

@@ -77,6 +77,30 @@ async function submitAuth(path, body, button) {
   }
 }
 
+
+function setupPasswordToggles() {
+  document.querySelectorAll('.password-toggle').forEach(toggle => {
+    const targetId = toggle.getAttribute('data-target');
+    const passwordInput = document.getElementById(targetId);
+    if (!passwordInput) return;
+
+    const syncToggleState = isVisible => {
+      toggle.classList.toggle('is-visible', isVisible);
+      toggle.setAttribute('aria-label', isVisible ? 'Hide password' : 'Show password');
+      toggle.setAttribute('aria-pressed', String(isVisible));
+    };
+
+    syncToggleState(passwordInput.type === 'text');
+
+    toggle.addEventListener('click', () => {
+      const isVisible = passwordInput.type !== 'password';
+      passwordInput.type = isVisible ? 'password' : 'text';
+      syncToggleState(!isVisible);
+      passwordInput.focus();
+    });
+  });
+}
+
 function switchForm(formName) {
   const loginForm = document.getElementById('login-form');
   const signupForm = document.getElementById('signup-form');
@@ -127,6 +151,8 @@ document.addEventListener('DOMContentLoaded', () => {
       switchForm(tab.getAttribute('data-form'));
     });
   });
+
+  setupPasswordToggles();
 
   loginForm.addEventListener('submit', async event => {
     event.preventDefault();
