@@ -3,7 +3,9 @@ import { createHmac } from 'node:crypto';
 import { test } from 'node:test';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
+import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app';
+import { env } from '../src/config/env';
 
 async function withServer(run: (baseUrl: string) => Promise<void>) {
   const { httpServer } = createApp();
@@ -177,6 +179,51 @@ test('POST /api/auth/signup for driver auto-initializes driver profile and dashb
     assert.deepEqual(ridesBody.rides, []);
 
     const earningsResponse = await postJson(baseUrl, '/api/drivers/earnings', {}, driver.accessToken);
+    assert.equal(earningsResponse.status, 200);
+    const earningsBody = await earningsResponse.json();
+    assert.equal(earningsBody.ok, true);
+    assert.equal(earningsBody.earningsCents, 0);
+    assert.equal(earningsBody.rideCount, 0);
+
+    const earningsGetResponse = await getJson(baseUrl, '/api/drivers/earnings', driver.accessToken);
+    assert.equal(earningsGetResponse.status, 200);
+    const earningsGetBody = await earningsGetResponse.json();
+    assert.equal(earningsGetBody.ok, true);
+    assert.equal(earningsGetBody.earningsCents, 0);
+    assert.equal(earningsGetBody.rideCount, 0);
+  });
+});
+
+test('legacy access tokens with userId claim can still load driver dashboard endpoints', async () => {
+  await withServer(async baseUrl => {
+    const driver = await signup(baseUrl, 'driver');
+    const legacyToken = jwt.sign(
+      {
+        userId: driver.user.id,
+        role: 'driver',
+        email: `driver-${randomUUID()}@example.com`
+      },
+      env.jwtSecret,
+      {
+        expiresIn: '1h',
+        issuer: 'flupflap-ride-api',
+        audience: 'flupflap-ride-clients'
+      }
+    );
+
+    const profileResponse = await getJson(baseUrl, '/api/drivers/me', legacyToken);
+    assert.equal(profileResponse.status, 200);
+    const profileBody = await profileResponse.json();
+    assert.equal(profileBody.ok, true);
+    assert.equal(profileBody.profile.userId, driver.user.id);
+
+    const ridesResponse = await getJson(baseUrl, '/api/rides/history', legacyToken);
+    assert.equal(ridesResponse.status, 200);
+    const ridesBody = await ridesResponse.json();
+    assert.equal(ridesBody.ok, true);
+    assert.deepEqual(ridesBody.rides, []);
+
+    const earningsResponse = await getJson(baseUrl, '/api/drivers/earnings', legacyToken);
     assert.equal(earningsResponse.status, 200);
     const earningsBody = await earningsResponse.json();
     assert.equal(earningsBody.ok, true);

@@ -4,6 +4,40 @@ function getProfile(userId: string) {
   return store.drivers.get(userId);
 }
 
+function getActorUserId(body: any) {
+  return body?.actor?.id || body?.actor?.userId || body?.actor?.sub || body?.userId;
+}
+
+function createDefaultDriverProfile(userId: string): any {
+  return {
+    userId,
+    status: 'pending' as const,
+    verificationState: 'documents_pending' as const,
+    availabilityStatus: 'offline' as const,
+    available: false,
+    lat: undefined,
+    lng: undefined,
+    rating: 5,
+    acceptanceRate: 1,
+    cancellationRate: 0,
+    earningsCents: 0,
+    documents: [] as string[]
+  };
+}
+
+function getOrCreateProfile(body: any) {
+  const userId = getActorUserId(body);
+  if (!userId) return { userId: null, profile: null };
+  const existing = getProfile(userId);
+  if (existing) return { userId, profile: existing };
+  if (body?.actor?.role !== 'driver') return { userId, profile: null };
+  const profile = createDefaultDriverProfile(userId);
+  store.drivers.set(userId, profile);
+  markStoreDirty();
+  console.info('[DRIVERS] Auto-created missing driver profile', { userId });
+  return { userId, profile };
+}
+
 function syncProfileState(profile: any) {
   if (profile.status === 'rejected') {
     profile.verificationState = 'rejected';
@@ -85,7 +119,7 @@ export function isDriverDispatchEligible(profile: any) {
 }
 
 export async function apply(body: any, _params?: any, _query?: any) {
-  const userId = body?.actor?.id || body?.userId;
+  const userId = getActorUserId(body);
   if (!userId) return { module: 'drivers', action: 'apply', error: 'actor ID or userId is required' };
 
   const existing = getProfile(userId);
@@ -120,8 +154,7 @@ export async function apply(body: any, _params?: any, _query?: any) {
 }
 
 export async function availability(body: any, _params?: any, _query?: any) {
-  const userId = body?.actor?.id || body?.userId;
-  const profile = getProfile(userId);
+  const { profile } = getOrCreateProfile(body);
   if (!profile) return { module: 'drivers', action: 'availability', error: 'driver not found' };
   syncProfileState(profile);
   const rawState = body?.status;
@@ -147,8 +180,7 @@ export async function availability(body: any, _params?: any, _query?: any) {
 }
 
 export async function location(body: any, _params?: any, _query?: any) {
-  const userId = body?.actor?.id || body?.userId;
-  const profile = getProfile(userId);
+  const { profile } = getOrCreateProfile(body);
   if (!profile) return { module: 'drivers', action: 'location', error: 'driver not found' };
   const lat = Number(body?.lat);
   const lng = Number(body?.lng);
@@ -160,8 +192,7 @@ export async function location(body: any, _params?: any, _query?: any) {
 }
 
 export async function me(body: any, _params?: any, _query?: any) {
-  const userId = body?.actor?.id || body?.userId;
-  const profile = getProfile(userId);
+  const { profile } = getOrCreateProfile(body);
   if (!profile) return { module: 'drivers', action: 'me', error: 'driver not found' };
   syncProfileState(profile);
   markStoreDirty();
@@ -169,8 +200,7 @@ export async function me(body: any, _params?: any, _query?: any) {
 }
 
 export async function currentTrip(body: any, _params?: any, _query?: any) {
-  const userId = body?.actor?.id || body?.userId;
-  const profile = getProfile(userId);
+  const { userId, profile } = getOrCreateProfile(body);
   if (!profile) return { module: 'drivers', action: 'current-trip', error: 'driver not found' };
   const ride = Array.from(store.rides.values())
     .filter(candidate => candidate.driverId === userId && (candidate.status === 'accepted' || candidate.status === 'started'))
@@ -179,8 +209,7 @@ export async function currentTrip(body: any, _params?: any, _query?: any) {
 }
 
 export async function earnings(body: any, _params?: any, _query?: any) {
-  const userId = body?.actor?.id || body?.userId;
-  const profile = getProfile(userId);
+  const { userId, profile } = getOrCreateProfile(body);
   if (!profile) return { module: 'drivers', action: 'earnings', error: 'driver not found' };
   const txs = store.walletTx.filter(tx => tx.userId === userId && tx.kind === 'credit');
   const total = txs.reduce((sum, tx) => sum + tx.amountCents, 0);
@@ -202,8 +231,7 @@ export async function earnings(body: any, _params?: any, _query?: any) {
 }
 
 export async function documents(body: any, _params?: any, _query?: any) {
-  const userId = body?.actor?.id || body?.userId;
-  const profile = getProfile(userId);
+  const { profile } = getOrCreateProfile(body);
   if (!profile) return { module: 'drivers', action: 'documents', error: 'driver not found' };
   const docs = Array.isArray(body?.documents) ? body.documents : [];
   profile.documents = [...new Set([...profile.documents, ...docs])];

@@ -11,6 +11,7 @@ router.use(requireAuth);
 router.use(requireRole('driver'));
 router.get('/me', controller.me);
 router.get('/current-trip', controller.currentTrip);
+router.get('/earnings', controller.earnings);
 router.post('/apply', validateBody(applySchema), controller.apply);
 router.post('/availability', validateBody(availabilitySchema), controller.availability);
 router.post('/location', validateBody(locationSchema), controller.location);

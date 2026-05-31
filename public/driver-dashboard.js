@@ -131,7 +131,6 @@ async function loadEarnings() {
   const earningsDiv = document.getElementById('earnings-info');
   try {
     const { data } = await fetchJson(`${API_BASE_URL}/api/drivers/earnings`, {
-      method: 'POST',
       headers: { Authorization: 'Bearer ' + accessToken }
     });
     const earningsCents = Number(data?.earningsCents);

@@ -3,7 +3,10 @@ import { env } from '../config/env';
 
 export function requireAuth(req: any, res: any, next: any) {
   const header = req.headers.authorization;
-  if (typeof header !== 'string' || !header.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' });
+  if (typeof header !== 'string' || !header.startsWith('Bearer ')) {
+    console.warn('[AUTH] Missing or malformed bearer token', { method: req.method, path: req.path });
+    return res.status(401).json({ error: 'Missing token' });
+  }
   try {
     const token = header.slice('Bearer '.length).trim();
     const payload = jwt.verify(token, env.jwtSecret, {
@@ -11,13 +14,17 @@ export function requireAuth(req: any, res: any, next: any) {
       audience: 'flupflap-ride-clients'
     }) as any;
 
-    if (!payload || typeof payload !== 'object' || typeof payload.sub !== 'string' || typeof payload.role !== 'string') {
+    const userId = payload?.sub || payload?.userId || payload?.id;
+    const role = payload?.role;
+    if (!payload || typeof payload !== 'object' || typeof userId !== 'string' || typeof role !== 'string') {
+      console.warn('[AUTH] Invalid JWT payload shape', { method: req.method, path: req.path, payloadKeys: Object.keys(payload || {}) });
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    req.user = { id: payload.sub, role: payload.role, email: payload.email, phone: payload.phone };
+    req.user = { id: userId, role, email: payload.email, phone: payload.phone };
     next();
-  } catch {
+  } catch (error) {
+    console.warn('[AUTH] JWT verification failed', { method: req.method, path: req.path, error: (error as Error)?.message });
     res.status(401).json({ error: 'Invalid token' });
   }
 }
