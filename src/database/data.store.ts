@@ -730,11 +730,11 @@ function hydrateStore() {
       if (refreshToken?.userId && refreshToken?.expiresAt) {
         const hydratedAt = now();
         store.refreshTokens.set(tokenHash, {
+          ...refreshToken,
           sessionId: refreshToken.sessionId || makeId('session'),
           createdAt: refreshToken.createdAt || hydratedAt,
           lastUsedAt: refreshToken.lastUsedAt || hydratedAt,
-          deviceName: refreshToken.deviceName || 'legacy session',
-          ...refreshToken
+          deviceName: refreshToken.deviceName || 'legacy session'
         });
       }
     }

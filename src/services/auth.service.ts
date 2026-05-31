@@ -25,7 +25,7 @@ function inferDeviceName(userAgent?: string) {
   if (source.includes('windows')) return 'Windows device';
   if (source.includes('mac os') || source.includes('macintosh')) return 'Mac device';
   if (source.includes('linux')) return 'Linux device';
-  return userAgent!.slice(0, 80);
+  return (userAgent || 'unknown device').slice(0, 80);
 }
 
 function issueRefreshToken(userId: string, sessionContext: Partial<RefreshTokenSession> = {}) {

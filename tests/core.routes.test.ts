@@ -139,6 +139,8 @@ test('POST /api/auth/signup rejects weak passwords', async () => {
     const body = await response.json();
     assert.equal(Array.isArray(body.error?.fieldErrors?.password), true);
     assert.equal(body.error.fieldErrors.password.some((message: string) => message.includes('12 characters')), true);
+    assert.equal(body.error.fieldErrors.password.some((message: string) => message.includes('uppercase')), true);
+    assert.equal(body.error.fieldErrors.password.some((message: string) => message.includes('symbol')), true);
   });
 });
 
