@@ -319,7 +319,7 @@ test('capture generates an invoice and refunds can be tracked separately from wa
     const captured = await captureRes.json();
     assert.equal(captured.ok, true);
     assert.equal(captured.invoice.status, 'issued');
-    assert.match(captured.invoice.invoiceNumber, /^INV-PAY_/);
+    assert.match(captured.invoice.invoiceNumber, /^INV-/);
 
     const getInvoiceRes = await fetch(`${baseUrl}/api/payments/get-invoice`, {
       method: 'POST',

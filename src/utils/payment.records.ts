@@ -61,16 +61,16 @@ export function applyCaptureLedger(payment: Payment) {
   return ensureInvoiceForPayment(payment);
 }
 
-export function applyRefundLedger(payment: Payment, destination: RefundDestination = 'wallet', reason?: string) {
+export function applyRefundLedger(payment: Payment, destination: RefundDestination, reason?: string) {
   if (destination === 'wallet' && payment.riderId) {
     const riderReason = `payment:${payment.id}:refund`;
     if (!walletTxExists(payment.riderId, riderReason)) pushWalletTx(payment.riderId, 'credit', payment.amountCents, riderReason);
   }
 
   if (payment.driverId) {
-    const payoutReason = `payment:${payment.id}:refund_reversal`;
+    const reversalReason = `payment:${payment.id}:refund_reversal`;
     const payoutAmount = Math.round(payment.amountCents * DRIVER_PAYOUT_RATE);
-    if (!walletTxExists(payment.driverId, payoutReason)) pushWalletTx(payment.driverId, 'debit', payoutAmount, payoutReason);
+    if (!walletTxExists(payment.driverId, reversalReason)) pushWalletTx(payment.driverId, 'debit', payoutAmount, reversalReason);
   }
 
   const existingRefund = findRefundForPayment(payment.id);
@@ -89,7 +89,10 @@ export function applyRefundLedger(payment: Payment, destination: RefundDestinati
   };
 
   if (existingRefund) {
-    existingRefund.reason = existingRefund.reason || reason;
+    existingRefund.amountCents = payment.amountCents;
+    existingRefund.currency = payment.currency;
+    existingRefund.destination = destination;
+    existingRefund.reason = reason;
     existingRefund.updatedAt = timestamp();
   } else {
     store.refunds.set(refund.id, refund);

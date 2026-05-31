@@ -157,7 +157,7 @@ export async function list_methods(body: any, _params?: any, _query?: any) {
 
   const methods = Array.from(store.paymentMethods.values())
     .filter(method => method.userId === userId)
-    .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || b.updatedAt.localeCompare(a.updatedAt));
+    .sort((a, b) => ((b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0)) || b.updatedAt.localeCompare(a.updatedAt));
 
   return { module: 'payments', action: 'list-methods', ok: true, userId, methods };
 }
@@ -197,6 +197,7 @@ export async function remove_method(body: any, _params?: any, _query?: any) {
       replacement.isDefault = true;
       replacement.updatedAt = timestamp();
       store.paymentMethods.set(replacement.id, replacement);
+      markStoreDirty();
     }
   }
 
@@ -229,7 +230,11 @@ export async function list_refunds(body: any, _params?: any, _query?: any) {
   }
 
   const refunds = Array.from(store.refunds.values())
-    .filter(refund => (paymentId ? refund.paymentId === paymentId : true) && (userId ? refund.userId === userId : true))
+    .filter(refund => {
+      const matchesPayment = paymentId ? refund.paymentId === paymentId : true;
+      const matchesUser = userId ? refund.userId === userId : true;
+      return matchesPayment && matchesUser;
+    })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return { module: 'payments', action: 'list-refunds', ok: true, refunds };
 }
