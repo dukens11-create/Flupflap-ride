@@ -107,9 +107,9 @@ function setupPasswordToggles() {
     syncToggleState(passwordInput.type === 'text');
 
     toggle.addEventListener('click', () => {
-      const isVisible = passwordInput.type !== 'password';
-      passwordInput.type = isVisible ? 'password' : 'text';
-      syncToggleState(!isVisible);
+      const isVisible = passwordInput.type === 'password';
+      passwordInput.type = isVisible ? 'text' : 'password';
+      syncToggleState(isVisible);
       passwordInput.focus();
     });
   });
