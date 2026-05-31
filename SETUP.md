@@ -20,12 +20,17 @@ Optional mobile validation:
 
 1. `cd admin`
 2. `cp .env.example .env.local`
-3. `npm ci`
-4. `npm run lint`
-5. `npm run build`
-6. `npm run dev`
+3. Edit `.env.local` and set `NEXT_PUBLIC_API_BASE_URL` to the backend URL:
+   - Same machine: `http://localhost:8080`
+   - Another device on the LAN: `http://<host-LAN-IP>:8080` (e.g. `http://192.168.1.169:8080`)
+4. `npm ci`
+5. `npm run lint`
+6. `npm run build`
+7. `npm run dev`
 
-Set `NEXT_PUBLIC_API_BASE_URL` to the backend API URL, such as `http://localhost:8080`.
+> **Important:** `NEXT_PUBLIC_API_BASE_URL` is baked into the Next.js bundle at
+> build time. If you change the value in `.env.local` after building, delete the
+> `.next/` folder and run `npm run build` again (or restart `npm run dev`).
 
 ## Basic backend test run
 
