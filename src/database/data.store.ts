@@ -354,7 +354,7 @@ export type MarketplaceDelivery = {
   createdAt: string;
 };
 
-// ─── Scheduled Rides ────────────────────────────────────────────────────────
+// ─── Scheduled Rides ───────────────────────────────────────────────────────
 
 export type ScheduledRideStatus = 'scheduled' | 'dispatched' | 'completed' | 'canceled';
 
@@ -408,7 +408,7 @@ export type UserSubscription = {
   updatedAt: string;
 };
 
-// ─── Loyalty Program ────────────────────────────────────────────────────────
+// ─── Loyalty Program ───────────────────────────────────────────────────────
 
 export type LoyaltyTier = 'bronze' | 'silver' | 'gold' | 'platinum';
 
@@ -458,7 +458,7 @@ export type CorporateRideTag = {
   createdAt: string;
 };
 
-// ─── Carpooling ──────────────────────────────────────────────────────────────
+// ─── Carpooling ─────────────────────────────────────────────────────────
 
 export type CarpoolRideStatus = 'open' | 'full' | 'in_progress' | 'completed' | 'canceled';
 
@@ -488,7 +488,7 @@ export type CarpoolRide = {
   updatedAt: string;
 };
 
-// ─── Fraud Detection ────────────────────────────────────────────────────────
+// ─── Fraud Detection ───────────────────────────────────────────────────────
 
 export type FraudRiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
@@ -518,7 +518,7 @@ export type TotpEntry = {
   createdAt: string;
 };
 
-// ─── Chat / Messaging ─────────────────────────────────────────────────────────
+// ─── Chat / Messaging ───────────────────────────────────────────────────────
 
 export type ChatConversationType = 'direct' | 'group' | 'support';
 
@@ -570,7 +570,7 @@ export type ChatMessage = {
   updatedAt: string;
 };
 
-// ─── Notification Log ────────────────────────────────────────────────────────
+// ─── Notification Log ───────────────────────────────────────────────────────
 
 export type NotificationChannel = 'sms' | 'email' | 'push';
 
@@ -617,6 +617,10 @@ function hashPassword(password: string) {
   const salt = randomBytes(16);
   const hash = scryptSync(password, salt, 64);
   return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
+}
+
+export function timestamp() {
+  return now();
 }
 
 type PersistedStore = {
@@ -1019,11 +1023,7 @@ export function countCompletedRidesForRider(riderId: string): number {
   return Array.from(store.rides.values()).filter(r => r.riderId === riderId && r.status === 'completed').length;
 }
 
-export function timestamp() {
-  return now();
-}
-
-// ─── Loyalty helpers ────────────────────────────────────────────────────────
+// ─── Loyalty helpers ───────────────────────────────────────────────────────
 
 export function getLoyaltyTier(lifetimePoints: number): LoyaltyTier {
   if (lifetimePoints >= 10000) return 'platinum';
