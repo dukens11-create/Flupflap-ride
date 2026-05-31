@@ -315,6 +315,58 @@ select {
   margin-top: 0.45rem;
 }
 
+.password-field {
+  position: relative;
+}
+
+.password-field .form-control {
+  padding-right: 3rem;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.3rem;
+  height: 2.3rem;
+  border: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: transparent;
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+
+.password-toggle-icon {
+  position: relative;
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-toggle-icon::before {
+  content: '\1F441';
+}
+
+.password-toggle:not(.is-visible) .password-toggle-icon::after {
+  content: '';
+  position: absolute;
+  width: 1.25rem;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(-28deg);
+}
+
 .alert {
   border: 1px solid transparent;
   border-radius: 1rem;
