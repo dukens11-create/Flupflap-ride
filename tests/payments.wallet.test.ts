@@ -26,7 +26,7 @@ async function signupAndToken(baseUrl: string, role: 'rider' | 'driver') {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       email: `${role}-${randomUUID()}@example.com`,
-      password: 'password123',
+      password: 'Password123!',
       role
     })
   });
