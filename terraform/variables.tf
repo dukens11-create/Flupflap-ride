@@ -61,14 +61,12 @@ variable "db_password" {
 variable "jwt_secret" {
   description = "JWT signing secret stored in AWS Secrets Manager."
   type        = string
-  default     = ""
   sensitive   = true
 }
 
 variable "stripe_webhook_secret" {
   description = "Stripe webhook signing secret stored in AWS Secrets Manager."
   type        = string
-  default     = ""
   sensitive   = true
 }
 

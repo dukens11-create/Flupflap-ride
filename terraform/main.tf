@@ -244,7 +244,7 @@ resource "aws_elasticache_parameter_group" "redis" {
 }
 
 resource "aws_elasticache_replication_group" "redis" {
-  replication_group_id       = replace("${local.name_prefix}-redis", "_", "-")
+  replication_group_id       = "${local.name_prefix}-redis"
   description                = "Drive Redis cluster for caching and queues"
   engine                     = "redis"
   engine_version             = "7.1"
