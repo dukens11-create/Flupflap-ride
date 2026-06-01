@@ -50,6 +50,8 @@ test('ride request auto-assigns an eligible online driver and releases on comple
   assert.equal(request.dispatch.selected?.driverId, 'driver_dispatch');
   assert.equal(store.drivers.get('driver_dispatch')?.availabilityStatus, 'assigned');
 
+  // start() accepts both 'accepted' and 'arrived_at_pickup' for backward compat;
+  // this test exercises the direct accepted → started path.
   await rides.start({ rideId: request.ride.id, driverId: 'driver_dispatch' });
   const complete = await rides.complete({ rideId: request.ride.id, driverId: 'driver_dispatch' });
   assert.equal(complete.ok, true);

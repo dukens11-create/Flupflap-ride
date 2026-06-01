@@ -182,7 +182,7 @@ const mapRideToActiveTrip = (ride: RideSummary): ActiveTrip => {
     timeline: (ride.events ?? []).map((event) => ({ id: event.id, title: event.title, message: event.message, createdAt: event.createdAt })),
     passengerRating: ride.passengerRating,
     passengerReview: ride.passengerReview,
-    waitingSince: (ride as any).waitingSince,
+    waitingSince: ride.waitingSince,
   };
 };
 
