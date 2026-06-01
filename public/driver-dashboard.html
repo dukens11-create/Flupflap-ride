@@ -347,6 +347,10 @@
             overflow: hidden;
         }
 
+        .map-shell.satellite-view {
+            filter: hue-rotate(120deg) saturate(0.8) brightness(0.72);
+        }
+
         .map-shell::before,
         .map-shell::after {
             content: "";
@@ -395,6 +399,132 @@
         .point-ride {
             background: #1b80ff;
             box-shadow: 0 0 0 8px rgba(27, 128, 255, 0.15);
+        }
+
+        .map-dynamic,
+        .driver-arrow,
+        .accuracy-circle,
+        .point-pickup,
+        .point-dropoff,
+        .point-nearby,
+        .map-label {
+            position: absolute;
+        }
+
+        .driver-arrow {
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 12px solid #26d07c;
+            transform-origin: 50% 100%;
+            z-index: 13;
+        }
+
+        .accuracy-circle {
+            border-radius: 50%;
+            border: 2px dashed rgba(27, 128, 255, 0.35);
+            background: rgba(27, 128, 255, 0.08);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .point-pickup,
+        .point-dropoff {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #fff;
+            border-radius: 50% 50% 50% 0;
+            transform: translate(-50%, -100%) rotate(-45deg);
+            z-index: 10;
+        }
+
+        .point-pickup {
+            background: #ff6b6b;
+            box-shadow: 0 2px 6px rgba(255, 107, 107, 0.55);
+        }
+
+        .point-dropoff {
+            background: #26d07c;
+            box-shadow: 0 2px 6px rgba(38, 208, 124, 0.55);
+        }
+
+        .point-nearby {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #f8c15d;
+            border: 2px solid #fff;
+            transform: translate(-50%, -50%);
+            z-index: 9;
+        }
+
+        .map-label {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: rgba(7, 16, 24, 0.74);
+            color: #f5f7fb;
+            pointer-events: none;
+            white-space: nowrap;
+            transform: translateX(-50%);
+            z-index: 14;
+        }
+
+        .map-controls {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .map-controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .map-controls-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
+        .map-control-value {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .compass-indicator {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.74rem;
+            font-weight: 700;
+            background: rgba(7, 16, 24, 0.86);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            color: var(--text);
+        }
+
+        .gps-good { color: #26d07c; font-weight: 600; }
+        .gps-medium { color: #f8c15d; font-weight: 600; }
+        .gps-poor { color: #ff6b6b; font-weight: 600; }
+
+        .gps-log {
+            max-height: 110px;
+            overflow-y: auto;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 11px;
+            color: var(--muted);
+            border-top: 1px dashed rgba(255, 255, 255, 0.12);
+            padding-top: 8px;
         }
 
         .bottom-sheet {
@@ -735,6 +865,7 @@
             <div class="map-frame">
                 <div id="map-shell" class="map-shell">
                     <div class="map-grid"></div>
+                    <svg id="map-route-layer" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;" aria-hidden="true"></svg>
                 </div>
             </div>
         </section>
@@ -761,6 +892,39 @@
                                     <h2>Real-time Map</h2>
                                     <span>Full-screen driver map with floating cards and live dispatch context.</span>
                                 </div>
+                            </div>
+                            <div class="map-controls">
+                                <div class="map-controls-row">
+                                    <button id="follow-mode-button" class="primary-action" type="button"><i class="bi bi-geo-alt-fill"></i> Follow Driver: ON</button>
+                                    <button id="satellite-toggle-button" class="secondary-action" type="button"><i class="bi bi-globe"></i> Satellite</button>
+                                    <button id="zoom-in-button" class="secondary-action" type="button" aria-label="Zoom in"><i class="bi bi-zoom-in"></i></button>
+                                    <button id="zoom-out-button" class="secondary-action" type="button" aria-label="Zoom out"><i class="bi bi-zoom-out"></i></button>
+                                </div>
+                                <div class="map-controls-grid">
+                                    <div><strong>Speed:</strong> <span id="gps-speed" class="map-control-value">-- km/h</span></div>
+                                    <div><strong>Accuracy:</strong> <span id="gps-accuracy" class="map-control-value">--</span></div>
+                                    <div><strong>GPS Signal:</strong> <span id="gps-signal" class="map-control-value">Unknown</span></div>
+                                    <div><strong>Updated:</strong> <span id="last-update" class="map-control-value">--</span></div>
+                                    <div><strong>ETA Pickup:</strong> <span id="eta-pickup" class="map-control-value">--</span></div>
+                                    <div><strong>ETA Dropoff:</strong> <span id="eta-dropoff" class="map-control-value">--</span></div>
+                                    <div><strong>Distance Pickup:</strong> <span id="distance-pickup" class="map-control-value">--</span></div>
+                                    <div><strong>Trip Distance:</strong> <span id="distance-dropoff" class="map-control-value">--</span></div>
+                                </div>
+                                <div class="map-controls-row align-items-center">
+                                    <span class="compass-indicator" id="compass-indicator" title="Driver heading">N</span>
+                                    <span id="heading-text" class="map-control-value">Heading: --°</span>
+                                    <label for="update-frequency-input" class="mb-0">Interval:</label>
+                                    <select id="update-frequency-input" class="form-select form-select-sm" style="width:auto">
+                                        <option value="2000">2 s</option>
+                                        <option value="3000" selected>3 s</option>
+                                        <option value="5000">5 s</option>
+                                    </select>
+                                    <button id="simulate-gps-button" class="secondary-action" type="button"><i class="bi bi-play-circle"></i> Simulate GPS</button>
+                                </div>
+                                <details>
+                                    <summary class="small text-muted" style="cursor:pointer">GPS Debug Log</summary>
+                                    <div id="gps-log" class="gps-log"></div>
+                                </details>
                             </div>
                         </div>
                         <div class="panel-section">
@@ -851,11 +1015,16 @@
                                         <span>Keep compliance items up to date without leaving the dashboard.</span>
                                     </div>
                                 </div>
+                                <div id="verification-summary" class="ride-item mb-3">
+                                    <strong>Verification Status</strong>
+                                    <div class="text-muted">Upload a driver license scan and selfie for OCR extraction and admin approval.</div>
+                                </div>
                                 <form id="document-form" class="row g-2 align-items-end mb-3">
                                     <div class="col-md-4">
                                         <label class="form-label" for="document-type">Document Type</label>
                                         <select id="document-type" class="form-select" required>
                                             <option value="Driver License">Driver License</option>
+                                            <option value="Selfie Photo">Selfie Photo</option>
                                             <option value="Insurance">Insurance</option>
                                             <option value="Vehicle Registration">Vehicle Registration</option>
                                         </select>
