@@ -900,7 +900,9 @@ function readMapboxToken() {
     const params = new URLSearchParams(window.location.search);
     const queryToken = String(params.get('mapboxToken') || '').trim();
     const savedToken = String(localStorage.getItem(MAPBOX_TOKEN_STORAGE_KEY) || '').trim();
-    return queryToken || savedToken;
+    const metaToken = String(document.querySelector('meta[name="mapbox-token"]')?.content || '').trim();
+    const windowToken = String(window.MAPBOX_TOKEN || '').trim();
+    return queryToken || savedToken || metaToken || windowToken;
   } catch (_error) {
     return '';
   }
@@ -1166,6 +1168,26 @@ async function fetchRouteEstimate(originLat, originLng, destLat, destLng) {
             geometry: Array.isArray(route.geometry?.coordinates) ? route.geometry.coordinates : null,
           };
         }
+      }
+    } catch (_e) { /* fall through to next provider */ }
+  }
+
+  // Attempt Google Maps Directions API (requires API key exposed in env).
+  // Falls back to haversine estimate without network call.
+  const apiKey = typeof window !== 'undefined' && window.GOOGLE_MAPS_API_KEY;
+  if (apiKey) {
+    try {
+      const origin = `${originLat},${originLng}`;
+      const dest = `${destLat},${destLng}`;
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&mode=driving&key=${encodeURIComponent(apiKey)}`;
+      const { data } = await fetchJson(url, {});
+      if (data?.routes?.[0]?.legs?.[0]) {
+        const leg = data.routes[0].legs[0];
+        return {
+          distKm: Number(leg.distance?.value || 0) / 1000,
+          etaMin: Number(leg.duration?.value || 0) / 60,
+          geometry: null,
+        };
       }
     } catch (_e) { /* fall through to haversine */ }
   }
