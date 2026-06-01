@@ -139,11 +139,11 @@ function renderProfile() {
     return;
   }
 
-  const driverAlias = currentUser.email ? currentUser.email.split('@')[0].replace(/[._-]+/g, ' ') : 'Driver';
+  const driverDisplayName = currentUser.email ? currentUser.email.split('@')[0].replace(/[._-]+/g, ' ') : 'Driver';
   profileDiv.innerHTML = `
     <div class="profile-card-item">
       <span class="metric-label">Driver</span>
-      <strong>${escapeHtml(driverAlias)}</strong>
+      <strong>${escapeHtml(driverDisplayName)}</strong>
     </div>
     <div class="profile-grid">
       <div class="profile-card-item">
@@ -273,8 +273,8 @@ function renderAvailableRideRequests() {
     <div class="ride-item">
       <div class="ride-item-top">
         <div>
-          <div class="ride-passenger">${escapeHtml(ride.passengerName || ride.id)}</div>
-          <div class="ride-id">${escapeHtml(ride.id)} • ${Number(ride.passengerRating || 0).toFixed(1)} ★</div>
+          <div class="ride-passenger">${escapeHtml(ride.passengerName || 'Passenger')}</div>
+          <div class="ride-id">${escapeHtml(ride.id)} &bull; ${Number(ride.passengerRating || 0).toFixed(1)} &star;</div>
         </div>
         <span class="ride-status">${escapeHtml(ride.status)}</span>
       </div>
