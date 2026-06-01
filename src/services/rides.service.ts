@@ -13,11 +13,14 @@ import {
   timestamp,
   type Ride,
   type RideFareDetails,
-  type RideLifecycleState
+  type RideLifecycleState,
+  type RiderProfile,
+  type RideRequest,
+  type RideRequestResponse
 } from '../database/data.store';
 import { markDriverAssigned, releaseDriverFromRide } from './drivers.service';
 import { sendRealtimePushEvent } from './notifications.service';
-import { publishDriverRealtimeEarnings, publishRideRealtimeUpdate } from './realtime-dispatch.service';
+import { publishDriverRealtimeEarnings, publishRideRealtimeUpdate, publishRiderRatingSubmitted } from './realtime-dispatch.service';
 import { logger } from '../utils/logger';
 
 const BASE_FARE = 2.5;
@@ -28,6 +31,8 @@ const DEFAULT_SERVICE_FEE_PERCENT = 0.12;
 const DEFAULT_WAIT_TIMEOUT_SECONDS = 5 * 60;
 const DEFAULT_CANCELLATION_FEE_CENTS = 400;
 const DEFAULT_NO_SHOW_FEE_CENTS = 500;
+const RIDE_REQUEST_EXPIRY_MS = 30_000;
+const MAX_FAVORITE_LOCATIONS = 10;
 
 async function pushRideNotification(userId: string | undefined, category: string, title: string, body: string, template: string) {
   if (!userId) return;
@@ -66,6 +71,53 @@ function amountToCents(amount = 0) {
 
 function getRideEvents(ride: Ride) {
   return Array.isArray(ride.events) ? ride.events : [];
+}
+
+function getRideRequestByRideId(rideId: string) {
+  return Array.from(store.rideRequests.values()).find(request => request.rideId === rideId) || null;
+}
+
+function ensureRiderProfile(riderId: string): RiderProfile {
+  const existing = store.riders.get(riderId);
+  if (existing) return existing;
+  const profile = {
+    userId: riderId,
+    favoriteLocations: [],
+    rating: 5,
+    reviewCount: 0
+  };
+  store.riders.set(riderId, profile);
+  markStoreDirty();
+  return profile;
+}
+
+function syncRideRequestState(request: RideRequest, nextStatus?: RideRequest['status']) {
+  const now = timestamp();
+  if (nextStatus) {
+    request.status = nextStatus;
+    request.updatedAt = now;
+    return request;
+  }
+  if (request.status === 'broadcasting' && new Date(request.expiresAt).getTime() <= Date.now()) {
+    request.status = 'expired';
+    request.updatedAt = now;
+    request.responses = request.responses.map(response => response.status === 'broadcasted'
+      ? { ...response, status: 'expired', respondedAt: now }
+      : response);
+    markStoreDirty();
+  }
+  return request;
+}
+
+function upsertRideRequestResponse(request: RideRequest, driverId: string, status: RideRequestResponse['status']) {
+  const respondedAt = timestamp();
+  const nextResponse = { driverId, status, respondedAt };
+  const index = request.responses.findIndex(response => response.driverId === driverId);
+  if (index >= 0) request.responses[index] = nextResponse;
+  else request.responses.push(nextResponse);
+  request.updatedAt = respondedAt;
+  markStoreDirty();
+  return nextResponse;
 }
 
 function appendRideEvent(
@@ -302,6 +354,10 @@ export async function estimate(body: any, _params?: any, _query?: any) {
 export async function request(body: any, _params?: any, _query?: any) {
   const riderId = getRiderId(body);
   if (!riderId) return { module: 'rides', action: 'request', error: 'riderId is required' };
+  const riderProfile = ensureRiderProfile(riderId);
+  const pickupLat = Number(body?.pickupLat);
+  const pickupLng = Number(body?.pickupLng);
+  const hasValidPickupCoords = Number.isFinite(pickupLat) && Number.isFinite(pickupLng);
 
   const estimated = await estimate(body);
   const fareCents = Math.round(estimated.fareEstimate * 100);
@@ -363,13 +419,51 @@ export async function request(body: any, _params?: any, _query?: any) {
     updatedAt: now
   };
   store.rides.set(ride.id, ride);
+  riderProfile.currentTripId = ride.id;
+  riderProfile.lat = hasValidPickupCoords ? pickupLat : riderProfile.lat;
+  riderProfile.lng = hasValidPickupCoords ? pickupLng : riderProfile.lng;
+  riderProfile.lastLocationUpdatedAt = hasValidPickupCoords ? now : riderProfile.lastLocationUpdatedAt;
+  if (typeof body?.vehiclePreference === 'string' && body.vehiclePreference.trim()) riderProfile.vehiclePreference = body.vehiclePreference.trim();
+  if (typeof body?.routePreference === 'string' && body.routePreference.trim()) riderProfile.routePreference = body.routePreference.trim();
+  if (body?.favoriteLocationLabel && hasValidPickupCoords) {
+    const label = String(body.favoriteLocationLabel).trim();
+    if (label && !riderProfile.favoriteLocations.some(location => location.label === label && location.lat === pickupLat && location.lng === pickupLng)) {
+      riderProfile.favoriteLocations = [{ label, lat: pickupLat, lng: pickupLng }, ...riderProfile.favoriteLocations].slice(0, MAX_FAVORITE_LOCATIONS);
+    }
+  }
   const dispatch = await dispatchRide({ id: ride.id, pickupLat: ride.pickupLat, pickupLng: ride.pickupLng });
-  if (dispatch.selected?.driverId) {
+  const expiresAt = new Date(Date.now() + RIDE_REQUEST_EXPIRY_MS).toISOString();
+  const rideRequest: RideRequest = {
+    id: makeId('request'),
+    rideId: ride.id,
+    riderId,
+    pickupLat: ride.pickupLat,
+    pickupLng: ride.pickupLng,
+    dropoffLat: ride.dropoffLat,
+    dropoffLng: ride.dropoffLng,
+    fareEstimate: ride.fareEstimate,
+    broadcastedDrivers: dispatch.candidates.map(candidate => candidate.driverId),
+    responses: dispatch.candidates.map(candidate => ({
+      driverId: candidate.driverId,
+      status: 'broadcasted' as const,
+      respondedAt: now
+    })),
+    expiresAt,
+    status: 'broadcasting',
+    createdAt: now,
+    updatedAt: now
+  };
+  store.rideRequests.set(rideRequest.id, rideRequest);
+  if (dispatch.selected?.driverId && dispatch.candidates.length === 1) {
     const assigned = markDriverAssigned(dispatch.selected.driverId);
     if (assigned.ok) {
       ride.driverId = assigned.profile.userId;
+      assigned.profile.currentTripId = ride.id;
       ride.status = 'accepted';
       ride.lifecycleState = 'arriving';
+      rideRequest.acceptedDriverId = assigned.profile.userId;
+      rideRequest.status = 'accepted';
+      upsertRideRequestResponse(rideRequest, assigned.profile.userId, 'accepted');
       appendRideEvent(
         ride,
         'driver_assigned',
@@ -395,7 +489,16 @@ export async function request(body: any, _params?: any, _query?: any) {
     }
   }
   publishRideRealtimeUpdate(ride, 'ride_requested');
-  return { module: 'rides', action: 'request', ok: true, ride: toRiderRideSummary(ride), dispatch, discountCents, availableActions: getRideAvailableActions(ride) };
+  return {
+    module: 'rides',
+    action: 'request',
+    ok: true,
+    ride: toRiderRideSummary(ride),
+    request: syncRideRequestState(rideRequest),
+    dispatch,
+    discountCents,
+    availableActions: getRideAvailableActions(ride)
+  };
 }
 
 export async function history(body: any, _params?: any, _query?: any) {
@@ -403,6 +506,10 @@ export async function history(body: any, _params?: any, _query?: any) {
   const riderId = actor?.role === 'rider' ? actor?.id : getRiderId(body);
   const limit = Math.max(1, Math.min(100, Number(body?.limit || 20)));
   const status = body?.status;
+  const fromDate = body?.from ? new Date(body.from) : null;
+  const toDate = body?.to ? new Date(body.to) : null;
+  const validFromDate = fromDate && !Number.isNaN(fromDate.getTime()) ? fromDate : null;
+  const validToDate = toDate && !Number.isNaN(toDate.getTime()) ? toDate : null;
   const rides = Array.from(store.rides.values())
     .filter(ride => {
       if (actor?.role === 'admin') return true;
@@ -410,6 +517,8 @@ export async function history(body: any, _params?: any, _query?: any) {
       return ride.riderId === riderId;
     })
     .filter(ride => !status || ride.status === status)
+    .filter(ride => !validFromDate || new Date(ride.updatedAt) >= validFromDate)
+    .filter(ride => !validToDate || new Date(ride.updatedAt) <= validToDate)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return {
     module: 'rides',
@@ -430,11 +539,14 @@ export async function detail(body: any, params?: any, _query?: any) {
   const ride = getRide(rideId);
   if (!ride) return { module: 'rides', action: 'detail', error: 'ride not found' };
   if (!canAccessRide(body?.actor, ride)) return { module: 'rides', action: 'detail', error: 'forbidden' };
+  const request = getRideRequestByRideId(ride.id);
+  if (request) syncRideRequestState(request);
   return {
     module: 'rides',
     action: 'detail',
     ok: true,
     ride: toRiderRideSummary(ride),
+    request,
     receipt: getRideReceipt(ride),
     notifications: getRideEvents(ride)
   };
@@ -474,16 +586,32 @@ export async function notifications(body: any, _params?: any, _query?: any) {
   };
 }
 
-export async function accept(body: any, _params?: any, _query?: any) {
-  const ride = getRide(body?.rideId);
+export async function accept(body: any, params?: any, _query?: any) {
+  const rideId = params?.rideId || body?.rideId;
+  const ride = getRide(rideId);
   if (!ride) return { module: 'rides', action: 'accept', error: 'ride not found' };
+  const request = getRideRequestByRideId(ride.id);
+  if (request) syncRideRequestState(request);
+  if (request?.status === 'expired') {
+    return { module: 'rides', action: 'accept', error: 'ride request expired' };
+  }
   if (ride.status !== 'requested' && ride.status !== 'accepted') {
     return { module: 'rides', action: 'accept', error: `ride cannot be accepted: current status is ${ride.status}` };
   }
   const driverId = getDriverId(body);
   if (!driverId) return { module: 'rides', action: 'accept', error: 'driverId is required' };
-  if (ride.status === 'accepted' && ride.driverId === driverId) return { module: 'rides', action: 'accept', ok: true, ride: toRiderRideSummary(ride) };
+  if (request && request.broadcastedDrivers.length === 0) {
+    return { module: 'rides', action: 'accept', error: 'ride request has no broadcasted drivers' };
+  }
+  if (request && request.broadcastedDrivers.length && !request.broadcastedDrivers.includes(driverId)) {
+    return { module: 'rides', action: 'accept', error: 'driver was not included in this request broadcast' };
+  }
+  if (ride.status === 'accepted' && ride.driverId === driverId) {
+    if (request) syncRideRequestState(request, 'accepted');
+    return { module: 'rides', action: 'accept', ok: true, ride: toRiderRideSummary(ride), request };
+  }
   if (ride.status === 'accepted' && ride.driverId !== driverId) {
+    if (request) upsertRideRequestResponse(request, driverId, 'ignored');
     return { module: 'rides', action: 'accept', error: 'ride is already accepted by another driver' };
   }
   const assigned = markDriverAssigned(driverId);
@@ -491,6 +619,12 @@ export async function accept(body: any, _params?: any, _query?: any) {
   ride.driverId = driverId;
   ride.status = 'accepted';
   ride.lifecycleState = 'arriving';
+  assigned.profile.currentTripId = ride.id;
+  if (request) {
+    request.acceptedDriverId = driverId;
+    syncRideRequestState(request, 'accepted');
+    upsertRideRequestResponse(request, driverId, 'accepted');
+  }
   appendRideEvent(ride, 'driver_assigned', 'Pickup approaching', 'Driver is heading to your pickup point now.', 'driver', driverId);
   await pushRideNotification(
     ride.riderId,
@@ -500,7 +634,7 @@ export async function accept(body: any, _params?: any, _query?: any) {
     'trip_update_accepted'
   );
   publishRideRealtimeUpdate(ride, 'accepted');
-  return { module: 'rides', action: 'accept', ok: true, ride: toRiderRideSummary(ride) };
+  return { module: 'rides', action: 'accept', ok: true, ride: toRiderRideSummary(ride), request };
 }
 
 export async function arrive(body: any, _params?: any, _query?: any) {
@@ -571,6 +705,8 @@ export async function complete(body: any, _params?: any, _query?: any) {
   });
   ride.fareEstimate = ride.fareDetails.total;
   ride.paymentStatus = 'settled_internal';
+  const request = getRideRequestByRideId(ride.id);
+  if (request) syncRideRequestState(request, 'completed');
   appendRideEvent(ride, 'ride_completed', 'Ride completed', 'Your trip is complete and receipt details are ready.', 'driver', driverId, completedAt);
   await pushRideNotification(
     ride.riderId,
@@ -580,6 +716,8 @@ export async function complete(body: any, _params?: any, _query?: any) {
     'trip_update_completed'
   );
   if (ride.driverId) releaseDriverFromRide(ride.driverId);
+  const driverProfile = ride.driverId ? store.drivers.get(ride.driverId) : null;
+  if (driverProfile?.currentTripId === ride.id) driverProfile.currentTripId = undefined;
 
   const grossCents = amountToCents(ride.fareDetails.subtotal);
   const discountCents = amountToCents(ride.fareDetails.discounts);
@@ -618,6 +756,8 @@ export async function complete(body: any, _params?: any, _query?: any) {
     }
   }
 
+  const riderProfile = store.riders.get(ride.riderId);
+  if (riderProfile?.currentTripId === ride.id) riderProfile.currentTripId = undefined;
   publishRideRealtimeUpdate(ride, 'completed');
   if (ride.driverId) publishDriverRealtimeEarnings(ride.driverId);
   return { module: 'rides', action: 'complete', ok: true, ride: toRiderRideSummary(ride), grossCents, discountCents, amountCents, receipt: getRideReceipt(ride) };
@@ -638,8 +778,14 @@ export async function noShow(body: any, _params?: any, _query?: any) {
   ride.photoEvidenceUrl = typeof body?.photoEvidenceUrl === 'string' ? body.photoEvidenceUrl.trim() || undefined : undefined;
   ride.noShowReportedAt = now;
   setCancellationDetails(ride, 'driver', 'rider_no_show', now, DEFAULT_NO_SHOW_FEE_CENTS);
+  const request = getRideRequestByRideId(ride.id);
+  if (request) syncRideRequestState(request, 'canceled');
   appendRideEvent(ride, 'rider_no_show', 'Rider no-show', 'Driver waited at pickup but rider did not appear.', 'driver', driverId, now);
   if (ride.driverId) releaseDriverFromRide(ride.driverId);
+  const driverProfile = store.drivers.get(driverId);
+  if (driverProfile?.currentTripId === ride.id) driverProfile.currentTripId = undefined;
+  const riderProfile = store.riders.get(ride.riderId);
+  if (riderProfile?.currentTripId === ride.id) riderProfile.currentTripId = undefined;
   if (ride.riderId) pushWalletTx(ride.riderId, 'debit', DEFAULT_NO_SHOW_FEE_CENTS, `ride:${ride.id}:no_show_fee`);
   if (ride.driverId) {
     pushWalletTx(ride.driverId, 'credit', DEFAULT_NO_SHOW_FEE_CENTS, `ride:${ride.id}:cancellation_payout`);
@@ -686,8 +832,17 @@ export async function driverCancel(body: any, _params?: any, _query?: any) {
   const reason: string = typeof body?.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'canceled_by_driver';
   const now = timestamp();
   setCancellationDetails(ride, 'driver', reason, now, 0);
+  const request = getRideRequestByRideId(ride.id);
+  if (request) {
+    syncRideRequestState(request, 'canceled');
+    upsertRideRequestResponse(request, driverId, 'canceled');
+  }
   appendRideEvent(ride, 'ride_canceled', 'Ride canceled by driver', `Driver canceled the ride: ${reason}.`, 'driver', driverId, now);
   releaseDriverFromRide(driverId);
+  const driverProfile = store.drivers.get(driverId);
+  if (driverProfile?.currentTripId === ride.id) driverProfile.currentTripId = undefined;
+  const riderProfile = store.riders.get(ride.riderId);
+  if (riderProfile?.currentTripId === ride.id) riderProfile.currentTripId = undefined;
   await pushRideNotification(
     ride.riderId,
     'trip_updates',
@@ -723,6 +878,8 @@ export async function cancel(body: any, _params?: any, _query?: any) {
   const cancellationReason = body?.reason || 'canceled_by_rider';
   const cancellationFeeCents = ride.status === 'arrived_at_pickup' ? DEFAULT_CANCELLATION_FEE_CENTS : 0;
   setCancellationDetails(ride, 'rider', cancellationReason, canceledAt, cancellationFeeCents);
+  const request = getRideRequestByRideId(ride.id);
+  if (request) syncRideRequestState(request, 'canceled');
   appendRideEvent(
     ride,
     'ride_canceled',
@@ -765,6 +922,10 @@ export async function cancel(body: any, _params?: any, _query?: any) {
     }
   }
   if (ride.driverId) releaseDriverFromRide(ride.driverId);
+  const driverProfile = ride.driverId ? store.drivers.get(ride.driverId) : null;
+  if (driverProfile?.currentTripId === ride.id) driverProfile.currentTripId = undefined;
+  const riderProfile = store.riders.get(ride.riderId);
+  if (riderProfile?.currentTripId === ride.id) riderProfile.currentTripId = undefined;
   publishRideRealtimeUpdate(ride, 'canceled');
   return {
     module: 'rides',
@@ -793,7 +954,10 @@ export async function rate(body: any, _params?: any, _query?: any) {
   ride.review = typeof body?.review === 'string' ? body.review.trim() || undefined : undefined;
   ride.ratedAt = timestamp();
   appendRideEvent(ride, 'ride_rated', 'Trip rated', 'Thanks for rating this ride.', 'rider', riderId, ride.ratedAt);
+  const riderProfile = ensureRiderProfile(riderId);
+  riderProfile.reviewCount += 1;
   const driverRating = updateDriverRating(ride.driverId);
+  publishRiderRatingSubmitted(ride);
   syncRatedLifecycleState(ride);
   return { module: 'rides', action: 'rate', ok: true, rideId: ride.id, rating, review: ride.review, driverRating, ride: toRiderRideSummary(ride) };
 }
@@ -829,6 +993,36 @@ export async function ratePassenger(body: any, _params?: any, _query?: any) {
     comment: ride.passengerReview,
     ride: toRiderRideSummary(ride)
   };
+}
+
+export async function updateStatus(body: any, params?: any, query?: any) {
+  const rideId = params?.rideId || body?.rideId;
+  const status = String(body?.status || '').trim().toLowerCase();
+  if (!rideId) return { module: 'rides', action: 'update-status', error: 'rideId is required' };
+  if (!status) return { module: 'rides', action: 'update-status', error: 'status is required' };
+
+  const payload = { ...body, rideId };
+  if (status === 'accepted') return accept(payload, params, query);
+  if (status === 'arrived' || status === 'arrived_at_pickup') return arrive(payload, params, query);
+  if (status === 'started' || status === 'in_progress') {
+    const ride = getRide(rideId);
+    if (ride?.status === 'accepted') {
+      const arriveResult = await arrive(payload, params, query);
+      if (!arriveResult?.ok) return arriveResult;
+      return start({ ...payload, riderConfirmed: payload?.riderConfirmed ?? true }, params, query);
+    }
+    return start(payload, params, query);
+  }
+  if (status === 'completed') return complete(payload, params, query);
+  if (status === 'cancelled' || status === 'canceled') {
+    return body?.actor?.role === 'driver' ? driverCancel(payload, params, query) : cancel(payload, params, query);
+  }
+  return { module: 'rides', action: 'update-status', error: 'unsupported status transition' };
+}
+
+export async function submitRating(body: any, params?: any, query?: any) {
+  const payload = { ...body, rideId: params?.rideId || body?.rideId };
+  return body?.actor?.role === 'driver' ? ratePassenger(payload, params, query) : rate(payload, params, query);
 }
 
 export async function message(body: any, _params?: any, _query?: any) {
