@@ -151,7 +151,7 @@ test('GET / serves the professional dashboard login page', async () => {
 
       const body = await response.text();
       assert.match(body, /<script src="\/driver-dashboard\.js"><\/script>/);
-      ['toggle-availability-button', 'Driver mode', 'Professional control center', 'Ride History', 'Real-time Map', 'Performance Stats', 'Support \/ Help', 'Driver dashboard navigation', 'Follow Driver: ON', 'Simulate GPS', 'ETA Pickup', 'Selfie Photo', 'Verification Status'].forEach(label => {
+      ['toggle-availability-button', 'Driver mode', 'Professional control center', 'Ride History', 'Real-time Map', 'Performance Stats', 'Support \/ Help', 'Driver dashboard navigation', 'Follow Driver: ON', 'Simulate GPS', 'ETA Pickup', 'Selfie Photo', 'Verification Status', 'sheet-handle', 'bottom-sheet'].forEach(label => {
         assert.match(body, new RegExp(label));
       });
       assert.doesNotMatch(body, /\s(onclick|onsubmit)=/);
@@ -172,6 +172,9 @@ test('GET /driver-dashboard.js includes realtime and offline sync hooks', async 
       'startRealtimeSync',
       'subscribeFirebaseStream',
       'flushOfflineLocationQueue',
+      'setupBottomSheetControls',
+      'setupPaneSwipeNavigation',
+      'pointerdown',
       'PROFILE_LOAD_MAX_RETRIES',
       'validateAuthSession',
       'buildFallbackDemoProfile'
