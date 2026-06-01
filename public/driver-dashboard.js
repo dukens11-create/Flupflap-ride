@@ -2747,7 +2747,6 @@ function renderAvailableRideRequests() {
   updateRideRequestCountdowns();
   renderPassengerInfoPane();
   syncIncomingRideRequestPopup();
-  renderPassengerInfoPane();
   queueMapRender();
 }
 
