@@ -67,6 +67,7 @@ let selectedRideForDetails = null;
 let earningsSnapshot = { earningsCents: 0, rideCount: 0 };
 let realtimeSubscriptions = [];
 let realtimePollers = [];
+let realtimeSocket = null;
 let geolocationWatchId = null;
 let alertTimeoutId = null;
 
@@ -381,6 +382,10 @@ function addRealtimePoller(path, applyPayload) {
 }
 
 function clearRealtimeConnections() {
+  if (realtimeSocket) {
+    realtimeSocket.disconnect();
+    realtimeSocket = null;
+  }
   realtimeSubscriptions.forEach(unsub => {
     if (typeof unsub === 'function') unsub();
   });
@@ -389,11 +394,53 @@ function clearRealtimeConnections() {
   realtimePollers = [];
 }
 
+function startSocketRealtimeSync() {
+  if (!accessToken) return false;
+  if (typeof window.io === 'undefined') {
+    setRealtimeStatus('Realtime websocket client unavailable. Falling back to cached sync.', 'warning');
+    return false;
+  }
+  try {
+    realtimeSocket = window.io({
+      auth: { token: accessToken }
+    });
+  } catch (_error) {
+    setRealtimeStatus('Realtime websocket failed to initialize. Falling back to cached sync.', 'warning');
+    return false;
+  }
+  realtimeSocket.on('connect', () => {
+    realtimeSocket.emit('dispatch:subscribe');
+    setRealtimeStatus('Realtime dispatch connected.', 'success');
+  });
+  realtimeSocket.on('dispatch:rides', payload => {
+    applyRealtimeRides(payload?.items ?? payload);
+  });
+  realtimeSocket.on('dispatch:earnings', payload => {
+    applyRealtimeEarnings(payload);
+  });
+  realtimeSocket.on('dispatch:location', payload => {
+    applyRealtimeLocation(payload);
+  });
+  realtimeSocket.on('connect_error', () => {
+    setRealtimeStatus('Realtime dispatch connection failed. Using cached sync fallback.', 'warning');
+  });
+  realtimeSocket.on('disconnect', () => {
+    setRealtimeStatus(
+      navigator.onLine
+        ? 'Realtime dispatch disconnected. Using cached sync fallback.'
+        : 'Offline mode: realtime dispatch paused while your device is offline.',
+      'warning'
+    );
+  });
+  return true;
+}
+
 function startRealtimeSync() {
   clearRealtimeConnections();
+  const socketEnabled = startSocketRealtimeSync();
   const driverBasePath = getDriverRealtimeBasePath();
   const databaseUrl = getFirebaseDatabaseUrl();
-  if (!driverBasePath || !databaseUrl) return;
+  if (!driverBasePath || !databaseUrl) return socketEnabled;
 
   const ridesPath = `${driverBasePath}/rides`;
   const earningsPath = `${driverBasePath}/earnings`;
@@ -409,6 +456,7 @@ function startRealtimeSync() {
   addRealtimePoller(ridesPath, applyRealtimeRides);
   addRealtimePoller(earningsPath, applyRealtimeEarnings);
   addRealtimePoller(locationPath, applyRealtimeLocation);
+  return true;
 }
 
 async function publishRealtimeSnapshot(section, payload) {
