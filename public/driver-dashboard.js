@@ -514,8 +514,9 @@ function getPassengerInitials(name) {
 
 function createPassengerAvatarDataUrl(name) {
   const initials = getPassengerInitials(name);
+  const safeInitials = escapeHtml(initials);
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="${initials}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="${safeInitials}">
       <defs>
         <linearGradient id="avatarGradient" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="#26d07c" />
@@ -523,7 +524,7 @@ function createPassengerAvatarDataUrl(name) {
         </linearGradient>
       </defs>
       <rect width="96" height="96" rx="28" fill="url(#avatarGradient)" />
-      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700" fill="#071018">${initials}</text>
+      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700" fill="#071018">${safeInitials}</text>
     </svg>
   `.trim();
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
