@@ -14,6 +14,11 @@ const PROFILE_RETRY_DELAY_MS = 800;
 const GPS_LOG_KEY = 'driverGpsLog';
 const LAST_KNOWN_LOCATION_KEY = 'driverLastKnownLocation';
 const MAX_GPS_LOG_ENTRIES = 200;
+const GPS_RETRY_MAX_ATTEMPTS = 3;
+const GPS_RETRY_BASE_DELAY_MS = 2_000;
+const GPS_ACQUISITION_TIMEOUT_MS = 30_000;
+const INITIAL_GPS_LOOKUP_TIMEOUT_MS = 5_000;
+const GPS_STALE_POSITION_MS = 9_000;
 const ROUTE_CACHE_TTL_MS = 15000;
 const ROUTE_RECALC_DEBOUNCE_MS = 1200;
 const ROUTE_MOVEMENT_REFRESH_KM = 0.08;
@@ -81,7 +86,6 @@ let earningsSnapshot = { earningsCents: 0, rideCount: 0 };
 let realtimeSubscriptions = [];
 let realtimePollers = [];
 let realtimeSocket = null;
-let geolocationWatchId = null;
 let alertTimeoutId = null;
 
 let mapState = {
@@ -97,6 +101,10 @@ let mapState = {
   locationPermissionState: 'prompt',
   updateFrequencyMs: 3000,
   lastUpdateAt: null,
+  gpsLoading: false,
+  gpsRetryCount: 0,
+  gpsRetryExhausted: false,
+  gpsStatusMessage: 'Acquiring GPS...',
   renderPending: false,
   isDragging: false,
   dragStartX: 0,
@@ -134,6 +142,9 @@ let activePane = 'map';
 let gpsWatchId = null;
 let gpsPollIntervalId = null;
 let gpsSimulationIntervalId = null;
+let gpsRetryTimeoutId = null;
+let gpsAcquireTimeoutId = null;
+let gpsPermissionStatus = null;
 let gpsSimulationIndex = 0;
 let wakeLockSentinel = null;
 let routeRefreshTimeoutId = null;
@@ -205,6 +216,37 @@ function sleep(ms) {
   return new Promise(resolve => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function logGpsEvent(level, message, payload) {
+  const writer = typeof console?.[level] === 'function' ? console[level] : console.log;
+  if (typeof payload === 'undefined') {
+    writer(`[GPS] ${message}`);
+    return;
+  }
+  writer(`[GPS] ${message}`, payload);
+}
+
+function setGpsStatus(message, { loading = mapState.gpsLoading } = {}) {
+  mapState.gpsLoading = loading;
+  if (message) mapState.gpsStatusMessage = message;
+  const caption = document.getElementById('map-caption');
+  if (caption && message) caption.textContent = message;
+  updateMapUiReadouts();
+}
+
+function clearGpsRetryTimer() {
+  if (gpsRetryTimeoutId !== null) {
+    window.clearTimeout(gpsRetryTimeoutId);
+    gpsRetryTimeoutId = null;
+  }
+}
+
+function clearGpsAcquisitionTimeout() {
+  if (gpsAcquireTimeoutId !== null) {
+    window.clearTimeout(gpsAcquireTimeoutId);
+    gpsAcquireTimeoutId = null;
+  }
 }
 
 function parseStoredJson(key, fallback) {
@@ -572,21 +614,6 @@ async function flushOfflineLocationQueue() {
   setOfflineLocationQueue(remaining);
 }
 
-function startLocationTracking() {
-  if (!navigator.geolocation || geolocationWatchId !== null) return;
-  geolocationWatchId = navigator.geolocation.watchPosition(
-    position => {
-      syncDriverLocationToBackends({
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-        updatedAt: new Date().toISOString()
-      }).catch(() => {});
-    },
-    () => {},
-    { enableHighAccuracy: true, timeout: 8_000, maximumAge: 2_000 }
-  );
-}
-
 function getRejectedRideIds() {
   try {
     const parsed = JSON.parse(localStorage.getItem(REJECTED_RIDES_KEY) || '[]');
@@ -931,7 +958,7 @@ function headingToCardinal(degrees) {
 }
 
 function getGeolocationOptions() {
-  return { enableHighAccuracy: true, timeout: 8000, maximumAge: mapState.updateFrequencyMs };
+  return { enableHighAccuracy: true, timeout: GPS_ACQUISITION_TIMEOUT_MS, maximumAge: 1000 };
 }
 
 // ─── GPS Log ──────────────────────────────────────────────────────────────────
@@ -979,6 +1006,13 @@ function readMapboxToken() {
     console.error('[Mapbox] readMapboxToken error:', _error);
     return HARDCODED_FALLBACK;
   }
+}
+
+function getGpsAccuracyDetails(accuracy) {
+  if (!Number.isFinite(accuracy)) return { label: 'Unknown', className: '' };
+  if (accuracy < 10) return { label: 'Good', className: 'gps-good' };
+  if (accuracy < 50) return { label: 'Fair', className: 'gps-medium' };
+  return { label: 'Poor', className: 'gps-poor' };
 }
 
 function showMapTokenOverlay(show) {
@@ -1460,7 +1494,10 @@ function updateMapUiReadouts() {
   if (accEl) {
     const acc = pos?.accuracy;
     if (Number.isFinite(acc)) {
-      accEl.textContent = `±${Math.round(acc)} m`;
+      const details = getGpsAccuracyDetails(acc);
+      accEl.textContent = `±${Math.round(acc)} m (${details.label})`;
+    } else if (mapState.gpsLoading) {
+      accEl.textContent = 'Acquiring GPS...';
     } else {
       accEl.textContent = '--';
     }
@@ -1468,15 +1505,22 @@ function updateMapUiReadouts() {
 
   // GPS Signal
   const sigEl = document.getElementById('gps-signal');
-  if (sigEl && pos) {
-    const acc = pos.accuracy || 999;
-    if (acc <= 10) { sigEl.textContent = 'Excellent'; sigEl.className = 'gps-good'; }
-    else if (acc <= 30) { sigEl.textContent = 'Good'; sigEl.className = 'gps-good'; }
-    else if (acc <= 80) { sigEl.textContent = 'Fair'; sigEl.className = 'gps-medium'; }
-    else { sigEl.textContent = 'Poor'; sigEl.className = 'gps-poor'; }
-  } else if (sigEl) {
-    sigEl.textContent = mapState.locationPermissionState === 'denied' ? 'Denied' : 'Waiting…';
-    sigEl.className = '';
+  if (sigEl) {
+    let signalClassName = '';
+    if (mapState.locationPermissionState === 'denied') {
+      sigEl.textContent = 'Denied';
+    } else if (mapState.gpsLoading) {
+      sigEl.textContent = 'Acquiring GPS...';
+    } else if (pos) {
+      const details = getGpsAccuracyDetails(pos.accuracy || 999);
+      sigEl.textContent = details.label;
+      signalClassName = details.className;
+    } else if (mapState.gpsRetryExhausted) {
+      sigEl.textContent = 'Reconnecting';
+    } else {
+      sigEl.textContent = 'Waiting…';
+    }
+    sigEl.className = signalClassName;
   }
 
   // Last update
@@ -1627,10 +1671,15 @@ async function handlePositionUpdate(positionLike) {
     }
   }
 
+  const hadGpsIssue = mapState.gpsRetryCount > 0 || mapState.gpsRetryExhausted || mapState.gpsLoading;
   mapState.prevPosition = mapState.lastPosition;
   mapState.lastPosition = { lat, lng, accuracy, heading: heading ?? 0, speed: speedKmh, timestamp: Date.now() };
   mapState.lastUpdateAt = Date.now();
   mapState.locationPermissionState = 'granted';
+  mapState.gpsRetryCount = 0;
+  mapState.gpsRetryExhausted = false;
+  clearGpsRetryTimer();
+  clearGpsAcquisitionTimeout();
 
   // Persist for offline fallback
   saveLastKnownLocation(lat, lng, accuracy);
@@ -1649,30 +1698,99 @@ async function handlePositionUpdate(positionLike) {
 
   // Re-render map
   queueMapRender();
-  updateMapUiReadouts();
+  const accuracyDetails = getGpsAccuracyDetails(accuracy);
+  setGpsStatus(`GPS connected • Accuracy ${accuracyDetails.label} (±${Math.round(accuracy)} m)`, { loading: false });
+  if (hadGpsIssue) {
+    logGpsEvent('info', 'GPS signal restored.', { lat, lng, accuracy });
+  }
 }
 
 function handleGeoError(error) {
+  logGpsEvent('warn', 'Geolocation error received.', error);
   if (error?.code === 1) {
     mapState.locationPermissionState = 'denied';
-    showAlert('warning', 'Location permission denied. Enable GPS permissions to track rides.');
+    clearGpsRetryTimer();
+    clearGpsAcquisitionTimeout();
+    setGpsStatus('Location permission denied. Enable location access in your browser settings.', { loading: false });
+    showAlert('warning', 'Location permission denied. Enable location access in your browser settings.');
+    stopLocationTracking();
     return;
   }
-  if (error?.code === 2) {
-    showAlert('warning', 'GPS position unavailable. Retrying…');
-  } else {
-    showAlert('warning', 'GPS signal lost. Retrying location updates…');
-  }
+
+  const isUnavailable = error?.code === 2;
+  const errorLabel = isUnavailable ? 'GPS position unavailable.' : 'GPS signal lost.';
+  setGpsStatus(`${errorLabel} Acquiring GPS...`, { loading: true });
+  showAlert('warning', `${errorLabel} Retrying location updates…`);
   // Fall back to last known location for map display
   const fallback = getLastKnownLocation();
   if (fallback && !mapState.lastPosition) {
     mapState.lastPosition = { lat: fallback.lat, lng: fallback.lng, accuracy: fallback.accuracy ?? DEFAULT_LOCATION_ACCURACY_M, heading: 0, speed: 0, timestamp: Date.now() };
     queueMapRender();
   }
+  scheduleGpsRetry(error);
 }
 
-async function startLocationTracking() {
+function scheduleGpsRetry(error) {
+  clearGpsAcquisitionTimeout();
+  if (gpsRetryTimeoutId !== null) return;
+
+  const nextAttempt = mapState.gpsRetryCount + 1;
+  if (nextAttempt > GPS_RETRY_MAX_ATTEMPTS) {
+    mapState.gpsRetryExhausted = true;
+    setGpsStatus('Waiting for GPS signal to return...', { loading: true });
+    logGpsEvent('warn', 'GPS retry limit reached; keeping watch active for automatic recovery.', error);
+    return;
+  }
+
+  mapState.gpsRetryCount = nextAttempt;
+  const delay = GPS_RETRY_BASE_DELAY_MS * (2 ** (nextAttempt - 1)); // Retry delays before attempts 1-3: 2s, 4s, 8s
+  setGpsStatus(`Acquiring GPS... retry ${nextAttempt}/${GPS_RETRY_MAX_ATTEMPTS} in ${Math.round(delay / 1000)}s`, { loading: true });
+  logGpsEvent('info', `Scheduling GPS retry ${nextAttempt}/${GPS_RETRY_MAX_ATTEMPTS}.`, { delay, error });
+  gpsRetryTimeoutId = window.setTimeout(() => {
+    gpsRetryTimeoutId = null;
+    restartLocationTracking({ reason: 'retry' }).catch(restartError => {
+      logGpsEvent('error', 'GPS retry restart failed.', restartError);
+    });
+  }, delay);
+}
+
+function startGpsAcquisitionTimeout() {
+  clearGpsAcquisitionTimeout();
+  gpsAcquireTimeoutId = window.setTimeout(() => {
+    logGpsEvent('warn', `GPS acquisition timed out after ${GPS_ACQUISITION_TIMEOUT_MS}ms.`);
+    handleGeoError({ code: 3, message: 'GPS acquisition timed out.' });
+  }, GPS_ACQUISITION_TIMEOUT_MS);
+}
+
+async function beginGeolocationWatch() {
+  if (gpsWatchId !== null) return;
+  startGpsAcquisitionTimeout();
+  gpsWatchId = navigator.geolocation.watchPosition(handlePositionUpdate, handleGeoError, getGeolocationOptions());
+  logGpsEvent('info', 'Started navigator.geolocation.watchPosition.', { watchId: gpsWatchId });
+}
+
+async function requestGeolocationPermission() {
+  return new Promise(resolve => {
+    navigator.geolocation.getCurrentPosition(
+      async position => {
+        logGpsEvent('info', 'Geolocation permission granted via prompt callback.');
+        await handlePositionUpdate(position);
+        resolve(true);
+      },
+      error => {
+        logGpsEvent(error?.code === 1 ? 'warn' : 'error', 'Geolocation permission request failed.', error);
+        handleGeoError(error);
+        resolve(false);
+      },
+      getGeolocationOptions()
+    );
+  });
+}
+
+async function startLocationTracking({ reason = 'start' } = {}) {
   if (!navigator.geolocation) {
+    logGpsEvent('error', 'Geolocation API is unavailable in this browser.');
+    setGpsStatus('Geolocation is unavailable on this browser.', { loading: false });
     showAlert('warning', 'Geolocation is unavailable on this browser.');
     return;
   }
@@ -1681,32 +1799,50 @@ async function startLocationTracking() {
   // Check/request permission
   try {
     if (navigator.permissions?.query) {
-      const perm = await navigator.permissions.query({ name: 'geolocation' });
-      mapState.locationPermissionState = perm.state;
-      perm.onchange = () => {
-        mapState.locationPermissionState = perm.state;
-        if (perm.state === 'denied') {
-          showAlert('warning', 'Location access denied. Tracking paused.');
-          stopLocationTracking();
-        } else if (perm.state === 'granted') {
-          startLocationTracking();
+      gpsPermissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+      mapState.locationPermissionState = gpsPermissionStatus.state;
+      gpsPermissionStatus.onchange = () => {
+        mapState.locationPermissionState = gpsPermissionStatus.state;
+        logGpsEvent('info', `Geolocation permission changed to ${gpsPermissionStatus.state}.`);
+        if (gpsPermissionStatus.state === 'denied') {
+          handleGeoError({ code: 1, message: 'Geolocation permission denied.' });
+        } else if (gpsPermissionStatus.state === 'granted' && gpsWatchId === null) {
+          restartLocationTracking({ reason: 'permission-granted' }).catch(error => {
+            logGpsEvent('error', 'Unable to restart GPS tracking after permission change.', error);
+          });
         }
       };
+      if (gpsPermissionStatus.state === 'denied') {
+        handleGeoError({ code: 1, message: 'Geolocation permission denied.' });
+        return;
+      }
     }
   } catch (_e) {
     mapState.locationPermissionState = 'prompt';
   }
 
-  // Primary: continuous watchPosition
-  gpsWatchId = navigator.geolocation.watchPosition(handlePositionUpdate, handleGeoError, getGeolocationOptions());
+  logGpsEvent('info', `Starting GPS tracking (${reason}).`, { permission: mapState.locationPermissionState });
+  setGpsStatus('Acquiring GPS...', { loading: true });
+  if (mapState.locationPermissionState !== 'granted') {
+    const permissionGranted = await requestGeolocationPermission();
+    if (!permissionGranted && mapState.locationPermissionState === 'denied') return;
+  }
 
-  // Secondary: polling interval for browsers that throttle watchPosition
+  await beginGeolocationWatch();
+
+  // Detect stale fixes and reconnect automatically when watchPosition stalls.
   gpsPollIntervalId = window.setInterval(() => {
-    navigator.geolocation.getCurrentPosition(handlePositionUpdate, handleGeoError, getGeolocationOptions());
+    if (!mapState.lastUpdateAt || (Date.now() - mapState.lastUpdateAt) < GPS_STALE_POSITION_MS) return;
+    logGpsEvent('warn', 'GPS updates are stale; restarting watchPosition.', { lastUpdateAt: mapState.lastUpdateAt });
+    setGpsStatus('Acquiring GPS... stale fix detected.', { loading: true });
+    stopLocationTracking();
+    scheduleGpsRetry({ code: 3, message: 'GPS updates are stale.' });
   }, mapState.updateFrequencyMs);
 }
 
 function stopLocationTracking() {
+  clearGpsAcquisitionTimeout();
+  clearGpsRetryTimer();
   if (gpsWatchId !== null) {
     navigator.geolocation.clearWatch(gpsWatchId);
     gpsWatchId = null;
@@ -1717,15 +1853,20 @@ function stopLocationTracking() {
   }
 }
 
+async function restartLocationTracking({ reason = 'restart' } = {}) {
+  stopLocationTracking();
+  await startLocationTracking({ reason });
+}
+
 async function refreshTrackingFrequency() {
   if (gpsWatchId === null) return;
-  stopLocationTracking();
-  await startLocationTracking();
+  await restartLocationTracking({ reason: 'frequency-change' });
 }
 
 async function ensureDriverLocation() {
   // If we already have a live position, nothing to do
   if (mapState.lastPosition) return;
+  setGpsStatus('Acquiring GPS...', { loading: true });
 
   // Try last known from storage
   const stored = getLastKnownLocation();
@@ -1739,9 +1880,10 @@ async function ensureDriverLocation() {
           p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }),
           err => {
             if (err?.code === 1) mapState.locationPermissionState = 'denied';
+            logGpsEvent('warn', 'Initial GPS acquisition failed.', err);
             reject(err);
           },
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
+          { enableHighAccuracy: true, timeout: INITIAL_GPS_LOOKUP_TIMEOUT_MS, maximumAge: 1000 }
         );
       });
       await handlePositionUpdate({ coords: { latitude: coords.lat, longitude: coords.lng, accuracy: coords.accuracy, speed: null, heading: null } });
@@ -1753,6 +1895,7 @@ async function ensureDriverLocation() {
   mapState.centerLat = fallback.lat;
   mapState.centerLng = fallback.lng;
   currentProfile = { ...(currentProfile || {}), lat: fallback.lat, lng: fallback.lng };
+  setGpsStatus(stored ? 'Acquiring GPS... using last known location.' : 'Acquiring GPS... waiting for live location.', { loading: true });
   queueMapRender();
 }
 
@@ -3068,8 +3211,7 @@ window.addEventListener('load', async () => {
   });
   window.addEventListener('beforeunload', () => {
     clearRealtimeConnections();
-    if (geolocationWatchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(geolocationWatchId);
-    geolocationWatchId = null;
+    stopLocationTracking();
   });
   renderMap();
 });
