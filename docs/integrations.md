@@ -5,7 +5,8 @@
 - Keep webhook secret in `STRIPE_WEBHOOK_SECRET`.
 
 ## Maps/GPS
-- Configure provider keys in web/mobile env files.
+- Configure Mapbox token via `MAPBOX_PUBLIC_TOKEN` (backend) or `NEXT_PUBLIC_MAPBOX_TOKEN` (web) or `EXPO_PUBLIC_MAPBOX_TOKEN` / `expo.extra.mapboxToken` (mobile).
+- The project's Mapbox public token (`pk.*`) is pre-configured as the default in all apps; override in env files for custom accounts.
 - Validate geocoding and route rendering in staging.
 
 ## SMS

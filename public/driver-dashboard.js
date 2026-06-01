@@ -695,6 +695,28 @@ function appendGpsLogEntry(lat, lng, accuracy, heading, speed) {
 
 // ─── Route Estimation ─────────────────────────────────────────────────────────
 async function fetchRouteEstimate(originLat, originLng, destLat, destLng) {
+  // Prefer Mapbox Directions API when the public token is available.
+  // Token is read from the <meta name="mapbox-token"> tag set in the HTML
+  // (CSP-safe, no inline script) or from window.MAPBOX_TOKEN if overridden.
+  // Falls back to Google Maps Directions API, then to haversine estimate.
+  const mapboxToken =
+    (typeof document !== 'undefined' && document.querySelector('meta[name="mapbox-token"]')?.content) ||
+    (typeof window !== 'undefined' && window.MAPBOX_TOKEN) ||
+    '';
+  if (mapboxToken) {
+    try {
+      const coords = `${originLng},${originLat};${destLng},${destLat}`;
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${encodeURIComponent(coords)}?access_token=${encodeURIComponent(mapboxToken)}&overview=false`;
+      const { data } = await fetchJson(url, {});
+      if (data?.routes?.[0]) {
+        const route = data.routes[0];
+        const distKm = (route.distance || 0) / 1000;
+        const durMin = (route.duration || 0) / 60;
+        return { distKm, etaMin: durMin };
+      }
+    } catch (_e) { /* fall through to next provider */ }
+  }
+
   // Attempt Google Maps Directions API (requires API key exposed in env).
   // Falls back to haversine estimate without network call.
   const apiKey = typeof window !== 'undefined' && window.GOOGLE_MAPS_API_KEY;

@@ -218,7 +218,8 @@ npm run build
 Useful web environment variables:
 
 - `NEXT_PUBLIC_API_BASE_URL` – backend API origin for auth/rides/wallet/support integration
-- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` – enables live Google Places autocomplete
+- `NEXT_PUBLIC_MAPBOX_TOKEN` – Mapbox public token for map rendering (defaults to the project token)
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` – enables live Google Places autocomplete (optional)
 - `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` – enables Google Analytics
 - `NEXT_PUBLIC_ENABLE_API_LOGS=true` – prints request/response logs in the browser console
 
