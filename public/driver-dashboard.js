@@ -2,6 +2,7 @@ const API_BASE_URL = '';
 const REJECTED_RIDES_KEY = 'driverRejectedRideIds';
 const DRIVER_DOCS_KEY = 'driverDashboardDocs';
 const DRIVER_SUPPORT_KEY = 'driverDashboardSupportLog';
+const ALERT_DISPLAY_DURATION = 4200;
 
 const MOCK_COMPLETED_RIDES = [
   { id: 'ride_hist_101', pickupLat: 37.775, pickupLng: -122.418, dropoffLat: 37.789, dropoffLng: -122.401, fareEstimate: 24.5, minutes: 21, passengerRating: 4.9, completedAt: '2026-05-31T10:12:00.000Z' },
@@ -29,7 +30,7 @@ function showAlert(kind, message) {
   if (alertTimeoutId) clearTimeout(alertTimeoutId);
   alertTimeoutId = window.setTimeout(() => {
     alertDiv.classList.add('d-none');
-  }, 4200);
+  }, ALERT_DISPLAY_DURATION);
 }
 
 function escapeHtml(value) {
@@ -78,6 +79,11 @@ function setStoredList(storageKey, value) {
   localStorage.setItem(storageKey, JSON.stringify(value));
 }
 
+function getDriverDisplayName(email) {
+  if (!email) return 'Driver';
+  return email.split('@')[0].replace(/[._-]+/g, ' ');
+}
+
 function formatCoordinate(lat, lng) {
   if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return 'Unknown location';
   return `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
@@ -111,8 +117,10 @@ function renderDashboardSummary() {
   const requestsCount = nearbyRideRequests.length;
   const nearbyCount = document.getElementById('nearby-requests-count');
   const liveSummaryPill = document.getElementById('live-summary-pill');
+  const focusHeadline = document.getElementById('focus-headline');
   if (nearbyCount) nearbyCount.textContent = `${requestsCount} live request${requestsCount === 1 ? '' : 's'}`;
   if (liveSummaryPill) liveSummaryPill.innerHTML = `<i class="bi bi-lightning-charge"></i>&nbsp; ${requestsCount} active request${requestsCount === 1 ? '' : 's'}`;
+  if (focusHeadline) focusHeadline.textContent = requestsCount ? `${requestsCount} nearby request${requestsCount === 1 ? '' : 's'}` : 'Monitoring local demand';
 }
 
 function renderAvailabilityControls() {
@@ -139,7 +147,7 @@ function renderProfile() {
     return;
   }
 
-  const driverDisplayName = currentUser.email ? currentUser.email.split('@')[0].replace(/[._-]+/g, ' ') : 'Driver';
+  const driverDisplayName = getDriverDisplayName(currentUser.email);
   profileDiv.innerHTML = `
     <div class="profile-card-item">
       <span class="metric-label">Driver</span>
