@@ -98,6 +98,10 @@ describe('RideRequestCard integration', () => {
       setOnline: jest.fn(),
       updatePreferences: jest.fn(),
       refreshData: jest.fn(),
+      waitingSeconds: 0,
+      arriveAtPickup: jest.fn(),
+      reportNoShow: jest.fn(),
+      cancelTrip: jest.fn(),
     });
 
     const screen = render(<RideRequestCard />);
@@ -145,6 +149,10 @@ describe('RideRequestCard integration', () => {
       setOnline: jest.fn(),
       updatePreferences: jest.fn(),
       refreshData: jest.fn(),
+      waitingSeconds: 0,
+      arriveAtPickup: jest.fn(),
+      reportNoShow: jest.fn(),
+      cancelTrip: jest.fn(),
     });
 
     const screen = render(<RideRequestCard />);
@@ -190,6 +198,10 @@ describe('RideRequestCard integration', () => {
       setOnline: jest.fn(),
       updatePreferences: jest.fn(),
       refreshData: jest.fn(),
+      waitingSeconds: 0,
+      arriveAtPickup: jest.fn(),
+      reportNoShow: jest.fn(),
+      cancelTrip: jest.fn(),
     });
 
     const screen = render(<RideRequestCard />);
@@ -236,6 +248,10 @@ describe('RideRequestCard integration', () => {
       setOnline: jest.fn(),
       updatePreferences: jest.fn(),
       refreshData: jest.fn(),
+      waitingSeconds: 0,
+      arriveAtPickup: jest.fn(),
+      reportNoShow: jest.fn(),
+      cancelTrip: jest.fn(),
     });
 
     const screen = render(<RideRequestCard />);
@@ -283,6 +299,10 @@ describe('RideRequestCard integration', () => {
       setOnline: jest.fn(),
       updatePreferences: jest.fn(),
       refreshData: jest.fn(),
+      waitingSeconds: 0,
+      arriveAtPickup: jest.fn(),
+      reportNoShow: jest.fn(),
+      cancelTrip: jest.fn(),
     });
 
     const screen = render(<RideRequestCard />);
