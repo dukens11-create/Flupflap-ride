@@ -5,6 +5,7 @@ const DRIVER_DOCS_KEY = 'driverDashboardDocs';
 const DRIVER_SUPPORT_KEY = 'driverDashboardSupportLog';
 const DRIVER_REALTIME_CONFIG_KEY = 'driverRealtimeConfig';
 const DRIVER_REALTIME_CACHE_KEY = 'driverRealtimeCache';
+const DRIVER_MAPBOX_CONFIG_KEY = 'driverMapboxConfig';
 const DRIVER_OFFLINE_LOCATION_QUEUE_KEY = 'driverOfflineLocationQueue';
 const MAX_OFFLINE_LOCATION_QUEUE = 50;
 const REALTIME_POLL_INTERVAL_MS = 12_000;
@@ -21,11 +22,8 @@ const DEFAULT_FALLBACK_LNG = -122.4194;
 const DEFAULT_LOCATION_ACCURACY_M = 80;
 const DEFAULT_LOCATION_SPEED_KMH = 40;
 
-// Map projection constants
-const BASE_PROJECTION_SCALE = 190;    // %/degree at reference zoom
-const REFERENCE_ZOOM_LEVEL = 15;
-const MIN_SCALE_MULTIPLIER = 0.25;
-const MAX_SCALE_MULTIPLIER = 64;
+const DEFAULT_MAPBOX_STYLE = 'mapbox://styles/mapbox/dark-v11';
+const DEFAULT_MAPBOX_SATELLITE_STYLE = 'mapbox://styles/mapbox/satellite-streets-v12';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const MOCK_COMPLETED_RIDES = [
@@ -72,8 +70,6 @@ let mapState = {
   zoom: 15,
   centerLat: NaN,
   centerLng: NaN,
-  panX: 0,
-  panY: 0,
   followMode: true,
   satelliteView: false,
   lastPosition: null,   // { lat, lng, accuracy, heading, speed, timestamp }
@@ -81,10 +77,18 @@ let mapState = {
   locationPermissionState: 'prompt',
   updateFrequencyMs: 3000,
   lastUpdateAt: null,
-  renderPending: false,
-  isDragging: false,
-  dragStartX: 0,
-  dragStartY: 0,
+  renderPending: false
+};
+
+const mapboxState = {
+  map: null,
+  markers: new Map(),
+  labels: new Map(),
+  statusMessage: 'Mapbox map loading…',
+  styleUrl: '',
+  initialized: false,
+  styleReady: false,
+  moveSyncPending: false
 };
 
 let gpsWatchId = null;
@@ -155,6 +159,29 @@ function getRealtimeConfig() {
     return window.DRIVE_REALTIME_CONFIG;
   }
   return parseStoredJson(DRIVER_REALTIME_CONFIG_KEY, {});
+}
+
+function getMapboxConfig() {
+  if (typeof window !== 'undefined' && window.DRIVE_MAPBOX_CONFIG && typeof window.DRIVE_MAPBOX_CONFIG === 'object') {
+    return window.DRIVE_MAPBOX_CONFIG;
+  }
+  return parseStoredJson(DRIVER_MAPBOX_CONFIG_KEY, {});
+}
+
+function getActiveMapStyleUrl() {
+  const config = getMapboxConfig();
+  const primary = String(config.styleUrl || DEFAULT_MAPBOX_STYLE).trim();
+  const satellite = String(config.satelliteStyleUrl || DEFAULT_MAPBOX_SATELLITE_STYLE).trim();
+  return mapState.satelliteView ? satellite : primary;
+}
+
+function updateMapboxStatus(message) {
+  mapboxState.statusMessage = message;
+  const el = document.getElementById('mapbox-status');
+  if (el) {
+    el.textContent = message;
+    el.classList.toggle('d-none', !message);
+  }
 }
 
 function setRealtimeStatus(message, kind = 'info') {
@@ -764,6 +791,378 @@ function roundCoord(value) {
   return Math.round(Number(value) * 1e5) / 1e5;
 }
 
+function createAccuracyCircle(lat, lng, radiusMeters, points = 40) {
+  const earthRadius = 6371000;
+  const latRad = lat * Math.PI / 180;
+  const lngRad = lng * Math.PI / 180;
+  const angularDistance = radiusMeters / earthRadius;
+  const coordinates = [];
+
+  for (let index = 0; index <= points; index += 1) {
+    const bearing = (index / points) * Math.PI * 2;
+    const pointLat = Math.asin(
+      Math.sin(latRad) * Math.cos(angularDistance) +
+      Math.cos(latRad) * Math.sin(angularDistance) * Math.cos(bearing)
+    );
+    const pointLng = lngRad + Math.atan2(
+      Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latRad),
+      Math.cos(angularDistance) - Math.sin(latRad) * Math.sin(pointLat)
+    );
+    coordinates.push([pointLng * 180 / Math.PI, pointLat * 180 / Math.PI]);
+  }
+
+  return {
+    type: 'Feature',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [coordinates]
+    },
+    properties: {}
+  };
+}
+
+function createPointFeature(id, lat, lng, properties = {}) {
+  return {
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [Number(lng), Number(lat)] },
+    properties: { id, ...properties }
+  };
+}
+
+function ensureGeoJsonSource(sourceId, data) {
+  if (!mapboxState.map?.getSource(sourceId)) {
+    mapboxState.map.addSource(sourceId, {
+      type: 'geojson',
+      data
+    });
+    return;
+  }
+  mapboxState.map.getSource(sourceId).setData(data);
+}
+
+function ensureMapLayers() {
+  if (!mapboxState.map || !mapboxState.styleReady) return;
+
+  ensureGeoJsonSource('driver-accuracy', { type: 'FeatureCollection', features: [] });
+  ensureGeoJsonSource('driver-route', { type: 'FeatureCollection', features: [] });
+  ensureGeoJsonSource('nearby-rides', { type: 'FeatureCollection', features: [] });
+
+  if (!mapboxState.map.getLayer('driver-accuracy-fill')) {
+    mapboxState.map.addLayer({
+      id: 'driver-accuracy-fill',
+      type: 'fill',
+      source: 'driver-accuracy',
+      paint: {
+        'fill-color': '#1b80ff',
+        'fill-opacity': 0.08
+      }
+    });
+  }
+
+  if (!mapboxState.map.getLayer('driver-accuracy-outline')) {
+    mapboxState.map.addLayer({
+      id: 'driver-accuracy-outline',
+      type: 'line',
+      source: 'driver-accuracy',
+      paint: {
+        'line-color': '#4aa3ff',
+        'line-width': 2,
+        'line-dasharray': [2, 2]
+      }
+    });
+  }
+
+  if (!mapboxState.map.getLayer('driver-route-pickup')) {
+    mapboxState.map.addLayer({
+      id: 'driver-route-pickup',
+      type: 'line',
+      source: 'driver-route',
+      filter: ['==', ['get', 'segment'], 'pickup'],
+      paint: {
+        'line-color': '#0d6efd',
+        'line-width': 4,
+        'line-dasharray': [2, 2]
+      }
+    });
+  }
+
+  if (!mapboxState.map.getLayer('driver-route-dropoff')) {
+    mapboxState.map.addLayer({
+      id: 'driver-route-dropoff',
+      type: 'line',
+      source: 'driver-route',
+      filter: ['==', ['get', 'segment'], 'dropoff'],
+      paint: {
+        'line-color': '#26d07c',
+        'line-width': 4
+      }
+    });
+  }
+
+  if (!mapboxState.map.getLayer('nearby-rides-points')) {
+    mapboxState.map.addLayer({
+      id: 'nearby-rides-points',
+      type: 'circle',
+      source: 'nearby-rides',
+      paint: {
+        'circle-radius': 6,
+        'circle-color': '#f8c15d',
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+        'circle-opacity': 0.96
+      }
+    });
+  }
+}
+
+function setMarkerRotation(element, heading) {
+  if (!element) return;
+  element.style.transform = Number.isFinite(heading) ? `rotate(${heading}deg)` : '';
+}
+
+function upsertMarker(collection, markerId, options) {
+  if (!mapboxState.map || !window.mapboxgl) return null;
+  const existing = collection.get(markerId);
+  if (existing) {
+    existing.setLngLat([options.lng, options.lat]);
+    if (typeof options.className === 'string') existing.getElement().className = options.className;
+    if (options.text) existing.getElement().textContent = options.text;
+    return existing;
+  }
+
+  const element = document.createElement('div');
+  element.className = options.className;
+  if (options.text) element.textContent = options.text;
+  const marker = new window.mapboxgl.Marker({
+    element,
+    anchor: options.anchor || 'center',
+    offset: options.offset
+  })
+    .setLngLat([options.lng, options.lat])
+    .addTo(mapboxState.map);
+  collection.set(markerId, marker);
+  return marker;
+}
+
+function removeUnusedMarkers(collection, activeIds) {
+  collection.forEach((marker, markerId) => {
+    if (activeIds.has(markerId)) return;
+    marker.remove();
+    collection.delete(markerId);
+  });
+}
+
+function updateMarkerSets(hasDriverLocation, driverLat, driverLng, trackedRide) {
+  const activeMarkerIds = new Set();
+  const activeLabelIds = new Set();
+
+  if (hasDriverLocation) {
+    const marker = upsertMarker(mapboxState.markers, 'driver', {
+      lat: driverLat,
+      lng: driverLng,
+      className: 'driver-marker'
+    });
+    setMarkerRotation(marker?.getElement(), mapState.lastPosition?.heading);
+    activeMarkerIds.add('driver');
+  }
+
+  if (trackedRide) {
+    upsertMarker(mapboxState.markers, 'pickup', {
+      lat: Number(trackedRide.pickupLat),
+      lng: Number(trackedRide.pickupLng),
+      className: 'pickup-marker',
+      anchor: 'bottom'
+    });
+    upsertMarker(mapboxState.markers, 'dropoff', {
+      lat: Number(trackedRide.dropoffLat),
+      lng: Number(trackedRide.dropoffLng),
+      className: 'dropoff-marker',
+      anchor: 'bottom'
+    });
+    upsertMarker(mapboxState.labels, 'pickup-label', {
+      lat: Number(trackedRide.pickupLat),
+      lng: Number(trackedRide.pickupLng),
+      className: 'map-label-marker',
+      text: 'Pickup',
+      anchor: 'top',
+      offset: [0, -6]
+    });
+    upsertMarker(mapboxState.labels, 'dropoff-label', {
+      lat: Number(trackedRide.dropoffLat),
+      lng: Number(trackedRide.dropoffLng),
+      className: 'map-label-marker',
+      text: 'Dropoff',
+      anchor: 'top',
+      offset: [0, -6]
+    });
+    activeMarkerIds.add('pickup');
+    activeMarkerIds.add('dropoff');
+    activeLabelIds.add('pickup-label');
+    activeLabelIds.add('dropoff-label');
+  }
+
+  const rejected = new Set(getRejectedRideIds());
+  nearbyRideRequests
+    .filter(ride => !rejected.has(ride.id) && ride !== trackedRide)
+    .slice(0, 8)
+    .forEach(ride => {
+      const markerId = `nearby:${ride.id}`;
+      upsertMarker(mapboxState.markers, markerId, {
+        lat: Number(ride.pickupLat),
+        lng: Number(ride.pickupLng),
+        className: 'nearby-marker'
+      });
+      activeMarkerIds.add(markerId);
+    });
+
+  removeUnusedMarkers(mapboxState.markers, activeMarkerIds);
+  removeUnusedMarkers(mapboxState.labels, activeLabelIds);
+}
+
+function updateMapSources(hasDriverLocation, driverLat, driverLng, trackedRide) {
+  ensureMapLayers();
+  if (!mapboxState.map) return;
+
+  const accuracyFeatures = [];
+  if (hasDriverLocation && Number.isFinite(mapState.lastPosition?.accuracy) && mapState.lastPosition.accuracy > 0) {
+    accuracyFeatures.push(createAccuracyCircle(driverLat, driverLng, mapState.lastPosition.accuracy));
+  }
+  ensureGeoJsonSource('driver-accuracy', { type: 'FeatureCollection', features: accuracyFeatures });
+
+  const routeFeatures = [];
+  if (hasDriverLocation && trackedRide) {
+    routeFeatures.push({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [driverLng, driverLat],
+          [Number(trackedRide.pickupLng), Number(trackedRide.pickupLat)]
+        ]
+      },
+      properties: { segment: 'pickup' }
+    });
+    routeFeatures.push({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [Number(trackedRide.pickupLng), Number(trackedRide.pickupLat)],
+          [Number(trackedRide.dropoffLng), Number(trackedRide.dropoffLat)]
+        ]
+      },
+      properties: { segment: 'dropoff' }
+    });
+  }
+  ensureGeoJsonSource('driver-route', { type: 'FeatureCollection', features: routeFeatures });
+
+  const rejected = new Set(getRejectedRideIds());
+  const nearbyFeatures = nearbyRideRequests
+    .filter(ride => !rejected.has(ride.id) && ride !== trackedRide)
+    .slice(0, 8)
+    .map(ride => createPointFeature(ride.id, ride.pickupLat, ride.pickupLng));
+  ensureGeoJsonSource('nearby-rides', { type: 'FeatureCollection', features: nearbyFeatures });
+}
+
+function updateFollowButton() {
+  const btn = document.getElementById('follow-mode-button');
+  if (!btn) return;
+  btn.innerHTML = mapState.followMode
+    ? '<i class="bi bi-geo-alt-fill"></i> Follow Driver: ON'
+    : '<i class="bi bi-geo-alt"></i> Follow Driver: OFF';
+}
+
+function updateSatelliteButton() {
+  const btn = document.getElementById('satellite-toggle-button');
+  if (!btn) return;
+  btn.classList.toggle('primary-action', mapState.satelliteView);
+  btn.classList.toggle('secondary-action', !mapState.satelliteView);
+}
+
+function syncMapboxStyle() {
+  if (!mapboxState.map) return;
+  const nextStyle = getActiveMapStyleUrl();
+  if (!nextStyle || mapboxState.styleUrl === nextStyle) return false;
+  mapboxState.styleUrl = nextStyle;
+  mapboxState.styleReady = false;
+  mapboxState.map.setStyle(nextStyle);
+  return true;
+}
+
+function ensureMapboxMap() {
+  if (mapboxState.map || mapboxState.initialized) return mapboxState.map;
+  mapboxState.initialized = true;
+
+  const mapShell = document.getElementById('map-shell');
+  const mapCanvas = document.getElementById('map-canvas');
+  const config = getMapboxConfig();
+  const accessToken = String(config.accessToken || '').trim();
+
+  if (!window.mapboxgl || !mapCanvas) {
+    updateMapboxStatus('Mapbox library unavailable.');
+    return null;
+  }
+
+  if (!accessToken) {
+    updateMapboxStatus('Set MAPBOX_PUBLIC_TOKEN to enable the live driver map.');
+    if (mapShell) mapShell.classList.remove('satellite-view');
+    return null;
+  }
+
+  window.mapboxgl.accessToken = accessToken;
+  const fallback = getLastKnownLocation() || { lat: DEFAULT_FALLBACK_LAT, lng: DEFAULT_FALLBACK_LNG };
+  const initialLat = Number.isFinite(mapState.lastPosition?.lat) ? mapState.lastPosition.lat : fallback.lat;
+  const initialLng = Number.isFinite(mapState.lastPosition?.lng) ? mapState.lastPosition.lng : fallback.lng;
+  mapState.centerLat = initialLat;
+  mapState.centerLng = initialLng;
+  mapboxState.styleUrl = getActiveMapStyleUrl();
+  mapboxState.map = new window.mapboxgl.Map({
+    container: mapCanvas,
+    style: mapboxState.styleUrl,
+    center: [initialLng, initialLat],
+    zoom: mapState.zoom,
+    attributionControl: false
+  });
+
+  mapboxState.map.addControl(new window.mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right');
+  mapboxState.map.dragRotate.disable();
+  mapboxState.map.touchZoomRotate.disableRotation();
+
+  mapboxState.map.on('load', () => {
+    mapboxState.styleReady = true;
+    ensureMapLayers();
+    renderMap();
+  });
+  mapboxState.map.on('style.load', () => {
+    mapboxState.styleReady = true;
+    ensureMapLayers();
+    renderMap();
+  });
+  mapboxState.map.on('error', () => {
+    updateMapboxStatus('Mapbox could not load map data. Check the public token and CSP settings.');
+  });
+  mapboxState.map.on('dragstart', () => {
+    if (!mapState.followMode) return;
+    mapState.followMode = false;
+    updateFollowButton();
+  });
+  mapboxState.map.on('moveend', () => {
+    if (!mapboxState.map) return;
+    const center = mapboxState.map.getCenter();
+    mapState.centerLat = center.lat;
+    mapState.centerLng = center.lng;
+    mapState.zoom = mapboxState.map.getZoom();
+    if (!mapboxState.moveSyncPending && !mapState.followMode) {
+      updateMapUiReadouts();
+      renderMapCaption();
+    }
+    mapboxState.moveSyncPending = false;
+  });
+
+  updateMapboxStatus('');
+  return mapboxState.map;
+}
+
 function queueMapRender() {
   if (mapState.renderPending) return;
   mapState.renderPending = true;
@@ -774,178 +1173,56 @@ function queueMapRender() {
 }
 
 function renderMap() {
-  const mapShell = document.getElementById('map-shell');
   const caption = document.getElementById('map-caption');
-  const routeLayer = document.getElementById('map-route-layer');
-  if (!mapShell || !caption || !routeLayer) return;
-
-  // Satellite toggle class
+  const mapShell = document.getElementById('map-shell');
+  if (!mapShell || !caption) return;
   mapShell.classList.toggle('satellite-view', mapState.satelliteView);
-
-  // Clear dynamic DOM elements and SVG route paths
-  mapShell.querySelectorAll('.map-dynamic').forEach(node => node.remove());
-  routeLayer.innerHTML = '';
 
   const driverLat = Number(mapState.lastPosition?.lat ?? currentProfile?.lat);
   const driverLng = Number(mapState.lastPosition?.lng ?? currentProfile?.lng);
   const hasDriverLocation = Number.isFinite(driverLat) && Number.isFinite(driverLng);
 
-  // Initialise map centre on first render
-  if (!Number.isFinite(mapState.centerLat) || !Number.isFinite(mapState.centerLng)) {
-    const fallback = getLastKnownLocation() || { lat: DEFAULT_FALLBACK_LAT, lng: DEFAULT_FALLBACK_LNG };
-    mapState.centerLat = hasDriverLocation ? driverLat : fallback.lat;
-    mapState.centerLng = hasDriverLocation ? driverLng : fallback.lng;
-  }
-
-  // Follow mode: keep driver centred
-  if (hasDriverLocation && mapState.followMode) {
-    mapState.centerLat = driverLat;
-    mapState.centerLng = driverLng;
-    mapState.panX = 0;
-    mapState.panY = 0;
-  }
-
-  // Projection helper: lat/lng → {left%, top%}
-  // 50% is the map centre; -5/105 allow markers to render just outside the
-  // visible area so they don't abruptly appear/disappear at the edge.
-  const MAP_CENTER_PCT = 50;
-  const MAP_OVERFLOW_MIN = -5;
-  const MAP_OVERFLOW_MAX = 105;
-  const scale = BASE_PROJECTION_SCALE * Math.max(MIN_SCALE_MULTIPLIER, Math.min(MAX_SCALE_MULTIPLIER, 2 ** (mapState.zoom - REFERENCE_ZOOM_LEVEL)));
-  function project(lat, lng) {
-    const left = MAP_CENTER_PCT + ((Number(lng) - mapState.centerLng) * scale) + mapState.panX;
-    const top = MAP_CENTER_PCT - ((Number(lat) - mapState.centerLat) * scale) + mapState.panY;
-    return { left: Math.max(MAP_OVERFLOW_MIN, Math.min(MAP_OVERFLOW_MAX, left)), top: Math.max(MAP_OVERFLOW_MIN, Math.min(MAP_OVERFLOW_MAX, top)) };
-  }
-
   const trackedRide = selectedRideForDetails || nearbyRideRequests[0] || null;
-
-  // ── Draw route polylines ──────────────────────────────────────────────────
-  if (hasDriverLocation && trackedRide) {
-    const driverPt = project(driverLat, driverLng);
-    const pickupPt = project(trackedRide.pickupLat, trackedRide.pickupLng);
-    const dropoffPt = project(trackedRide.dropoffLat, trackedRide.dropoffLng);
-
-    // Driver → Pickup (blue)
-    const toPickup = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    toPickup.setAttribute('x1', `${driverPt.left}%`);
-    toPickup.setAttribute('y1', `${driverPt.top}%`);
-    toPickup.setAttribute('x2', `${pickupPt.left}%`);
-    toPickup.setAttribute('y2', `${pickupPt.top}%`);
-    toPickup.setAttribute('stroke', '#0d6efd');
-    toPickup.setAttribute('stroke-width', '2.5');
-    toPickup.setAttribute('stroke-dasharray', '6 4');
-    toPickup.setAttribute('stroke-linecap', 'round');
-    routeLayer.appendChild(toPickup);
-
-    // Pickup → Dropoff (green)
-    const toDropoff = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    toDropoff.setAttribute('x1', `${pickupPt.left}%`);
-    toDropoff.setAttribute('y1', `${pickupPt.top}%`);
-    toDropoff.setAttribute('x2', `${dropoffPt.left}%`);
-    toDropoff.setAttribute('y2', `${dropoffPt.top}%`);
-    toDropoff.setAttribute('stroke', '#198754');
-    toDropoff.setAttribute('stroke-width', '2.5');
-    toDropoff.setAttribute('stroke-linecap', 'round');
-    routeLayer.appendChild(toDropoff);
+  const map = ensureMapboxMap();
+  if (!map || !mapboxState.styleReady) {
+   renderMapCaption();
+   return;
   }
 
-  // ── Accuracy circle ───────────────────────────────────────────────────────
-  const accuracy = mapState.lastPosition?.accuracy;
-  if (hasDriverLocation && Number.isFinite(accuracy) && accuracy > 0) {
-    const driverPt = project(driverLat, driverLng);
-    // accuracy in metres → degrees → scaled percentage
-    const accDeg = accuracy / 111000;
-    const accPct = accDeg * scale * 2; // diameter in %
-    const circle = document.createElement('div');
-    circle.className = 'accuracy-circle map-dynamic';
-    circle.style.left = `${driverPt.left}%`;
-    circle.style.top = `${driverPt.top}%`;
-    circle.style.width = `${accPct}%`;
-    circle.style.height = `${accPct}%`;
-    mapShell.appendChild(circle);
+  if (syncMapboxStyle()) {
+    updateMapboxStatus('Switching map style…');
+    renderMapCaption();
+    return;
+  }
+  updateMapSources(hasDriverLocation, driverLat, driverLng, trackedRide);
+  updateMarkerSets(hasDriverLocation, driverLat, driverLng, trackedRide);
+
+  if (hasDriverLocation && mapState.followMode) {
+   mapboxState.moveSyncPending = true;
+   map.easeTo({
+     center: [driverLng, driverLat],
+     zoom: mapState.zoom,
+     duration: 800
+   });
+   mapState.centerLat = driverLat;
+   mapState.centerLng = driverLng;
   }
 
-  // ── Driver marker ─────────────────────────────────────────────────────────
-  const driverPt = project(
-    hasDriverLocation ? driverLat : DEFAULT_FALLBACK_LAT,
-    hasDriverLocation ? driverLng : DEFAULT_FALLBACK_LNG
-  );
-  const driverDot = document.createElement('div');
-  driverDot.className = 'point-driver map-dynamic';
-  driverDot.title = hasDriverLocation ? `You: ${formatCoordinate(driverLat, driverLng)}` : 'Your location (estimated)';
-  driverDot.style.left = `${driverPt.left}%`;
-  driverDot.style.top = `${driverPt.top}%`;
-  mapShell.appendChild(driverDot);
+  updateMapboxStatus('');
+  renderMapCaption();
+}
 
-  // Direction arrow (rotated to show heading)
-  const heading = mapState.lastPosition?.heading;
-  if (Number.isFinite(heading)) {
-    const arrow = document.createElement('div');
-    arrow.className = 'driver-arrow map-dynamic';
-    // Position arrow just above the driver dot
-    arrow.style.left = `${driverPt.left}%`;
-    arrow.style.top = `${driverPt.top}%`;
-    arrow.style.transform = `translate(-50%, calc(-100% - 10px)) rotate(${heading}deg)`;
-    mapShell.appendChild(arrow);
+function renderMapCaption() {
+  const caption = document.getElementById('map-caption');
+  if (!caption) return;
+  const driverLat = Number(mapState.lastPosition?.lat ?? currentProfile?.lat);
+  const driverLng = Number(mapState.lastPosition?.lng ?? currentProfile?.lng);
+  const zoom = mapboxState.map ? mapboxState.map.getZoom() : mapState.zoom;
+  if (Number.isFinite(driverLat) && Number.isFinite(driverLng)) {
+   caption.textContent = `Driver at ${formatCoordinate(roundCoord(driverLat), roundCoord(driverLng))} · ${nearbyRideRequests.length} nearby request(s) · Zoom ${zoom.toFixed(1)}`;
+   return;
   }
-
-  // ── Pickup pin ────────────────────────────────────────────────────────────
-  if (trackedRide) {
-    const pickupPt = project(trackedRide.pickupLat, trackedRide.pickupLng);
-    const pickupPin = document.createElement('div');
-    pickupPin.className = 'point-pickup map-dynamic';
-    pickupPin.title = `Pickup: ${formatCoordinate(trackedRide.pickupLat, trackedRide.pickupLng)}`;
-    pickupPin.style.left = `${pickupPt.left}%`;
-    pickupPin.style.top = `${pickupPt.top}%`;
-    mapShell.appendChild(pickupPin);
-
-    const pickupLabel = document.createElement('div');
-    pickupLabel.className = 'map-label map-dynamic';
-    pickupLabel.textContent = 'Pickup';
-    pickupLabel.style.left = `${pickupPt.left}%`;
-    pickupLabel.style.top = `${pickupPt.top - 4}%`;
-    mapShell.appendChild(pickupLabel);
-
-    // ── Dropoff pin ─────────────────────────────────────────────────────────
-    const dropoffPt = project(trackedRide.dropoffLat, trackedRide.dropoffLng);
-    const dropoffPin = document.createElement('div');
-    dropoffPin.className = 'point-dropoff map-dynamic';
-    dropoffPin.title = `Dropoff: ${formatCoordinate(trackedRide.dropoffLat, trackedRide.dropoffLng)}`;
-    dropoffPin.style.left = `${dropoffPt.left}%`;
-    dropoffPin.style.top = `${dropoffPt.top}%`;
-    mapShell.appendChild(dropoffPin);
-
-    const dropoffLabel = document.createElement('div');
-    dropoffLabel.className = 'map-label map-dynamic';
-    dropoffLabel.textContent = 'Dropoff';
-    dropoffLabel.style.left = `${dropoffPt.left}%`;
-    dropoffLabel.style.top = `${dropoffPt.top - 4}%`;
-    mapShell.appendChild(dropoffLabel);
-  }
-
-  // ── Nearby ride request dots ───────────────────────────────────────────────
-  const rejected = new Set(getRejectedRideIds());
-  nearbyRideRequests
-    .filter(ride => !rejected.has(ride.id) && ride !== trackedRide)
-    .slice(0, 8)
-    .forEach(ride => {
-      const pt = project(ride.pickupLat, ride.pickupLng);
-      if (pt.left < -4 || pt.left > 104 || pt.top < -4 || pt.top > 104) return;
-      const dot = document.createElement('div');
-      dot.className = 'point-nearby map-dynamic';
-      dot.title = `${ride.id} • ${formatCoordinate(ride.pickupLat, ride.pickupLng)}`;
-      dot.style.left = `${pt.left}%`;
-      dot.style.top = `${pt.top}%`;
-      mapShell.appendChild(dot);
-    });
-
-  // ── Caption ───────────────────────────────────────────────────────────────
-  if (hasDriverLocation) {
-    caption.textContent = `Driver at ${formatCoordinate(roundCoord(driverLat), roundCoord(driverLng))} · ${nearbyRideRequests.length} nearby request(s) · Zoom ${mapState.zoom}`;
-  } else {
-    caption.textContent = `Location pending · ${nearbyRideRequests.length} nearby request(s) (mock data)`;
-  }
+  caption.textContent = `Location pending · ${nearbyRideRequests.length} nearby request(s)`;
 }
 
 // ─── GPS Tracking ─────────────────────────────────────────────────────────────
@@ -1605,6 +1882,9 @@ function setActivePane(pane) {
   document.querySelectorAll('.nav-tab').forEach(button => {
     button.classList.toggle('is-active', button.dataset.pane === pane);
   });
+  if (pane === 'map' && mapboxState.map) {
+    window.setTimeout(() => mapboxState.map?.resize(), 0);
+  }
 }
 // ─── Documents ────────────────────────────────────────────────────────────────
 function getDocumentStatus(expiryDate) {
@@ -1791,76 +2071,55 @@ function handleLogout() {
 
 // ─── Map Controls ─────────────────────────────────────────────────────────────
 function setupMapControls() {
-  // Follow mode toggle
+  updateFollowButton();
+  updateSatelliteButton();
+
   document.getElementById('follow-mode-button').addEventListener('click', () => {
     mapState.followMode = !mapState.followMode;
-    const btn = document.getElementById('follow-mode-button');
     if (mapState.followMode) {
-      btn.innerHTML = '<i class="bi bi-geo-alt-fill"></i> Follow: ON';
-      btn.classList.replace('btn-outline-primary', 'btn-primary');
-      mapState.panX = 0;
-      mapState.panY = 0;
-    } else {
-      btn.innerHTML = '<i class="bi bi-geo-alt"></i> Follow: OFF';
-      btn.classList.replace('btn-primary', 'btn-outline-primary');
+      const driverLat = Number(mapState.lastPosition?.lat ?? currentProfile?.lat);
+      const driverLng = Number(mapState.lastPosition?.lng ?? currentProfile?.lng);
+      if (Number.isFinite(driverLat) && Number.isFinite(driverLng) && mapboxState.map) {
+        mapboxState.moveSyncPending = true;
+        mapboxState.map.easeTo({ center: [driverLng, driverLat], zoom: mapState.zoom, duration: 700 });
+      }
+    }
+    updateFollowButton();
+    queueMapRender();
+  });
+
+  document.getElementById('satellite-toggle-button').addEventListener('click', () => {
+    mapState.satelliteView = !mapState.satelliteView;
+    updateSatelliteButton();
+    queueMapRender();
+  });
+
+  document.getElementById('zoom-in-button').addEventListener('click', () => {
+    mapState.zoom = Math.min(20, mapState.zoom + 1);
+    if (mapboxState.map) {
+      mapboxState.moveSyncPending = true;
+      mapboxState.map.zoomTo(mapState.zoom, { duration: 300 });
     }
     queueMapRender();
   });
 
-  // Satellite toggle
-  document.getElementById('satellite-toggle-button').addEventListener('click', () => {
-    mapState.satelliteView = !mapState.satelliteView;
-    const btn = document.getElementById('satellite-toggle-button');
-    btn.classList.toggle('btn-secondary', mapState.satelliteView);
-    btn.classList.toggle('btn-outline-secondary', !mapState.satelliteView);
-    queueMapRender();
-  });
-
-  // Zoom in
-  document.getElementById('zoom-in-button').addEventListener('click', () => {
-    mapState.zoom = Math.min(20, mapState.zoom + 1);
-    queueMapRender();
-  });
-
-  // Zoom out
   document.getElementById('zoom-out-button').addEventListener('click', () => {
     mapState.zoom = Math.max(10, mapState.zoom - 1);
+    if (mapboxState.map) {
+      mapboxState.moveSyncPending = true;
+      mapboxState.map.zoomTo(mapState.zoom, { duration: 300 });
+    }
     queueMapRender();
   });
 
-  // Mouse wheel zoom on map
   document.getElementById('map-shell').addEventListener('wheel', event => {
+    if (!mapboxState.map) return;
     event.preventDefault();
     mapState.zoom = Math.max(10, Math.min(20, mapState.zoom + (event.deltaY < 0 ? 1 : -1)));
-    queueMapRender();
+    mapboxState.moveSyncPending = true;
+    mapboxState.map.zoomTo(mapState.zoom, { duration: 250 });
   }, { passive: false });
 
-  // Pan by dragging
-  const shell = document.getElementById('map-shell');
-  shell.addEventListener('mousedown', event => {
-    mapState.isDragging = true;
-    mapState.dragStartX = event.clientX;
-    mapState.dragStartY = event.clientY;
-    shell.style.cursor = 'grabbing';
-    mapState.followMode = false;
-    const btn = document.getElementById('follow-mode-button');
-    btn.innerHTML = '<i class="bi bi-geo-alt"></i> Follow: OFF';
-    btn.classList.replace('btn-primary', 'btn-outline-primary');
-  });
-  window.addEventListener('mousemove', event => {
-    if (!mapState.isDragging) return;
-    mapState.panX += event.clientX - mapState.dragStartX;
-    mapState.panY += event.clientY - mapState.dragStartY;
-    mapState.dragStartX = event.clientX;
-    mapState.dragStartY = event.clientY;
-    queueMapRender();
-  });
-  window.addEventListener('mouseup', () => {
-    mapState.isDragging = false;
-    shell.style.cursor = 'grab';
-  });
-
-  // Update frequency
   document.getElementById('update-frequency-input').addEventListener('change', event => {
     mapState.updateFrequencyMs = Number(event.target.value) || 3000;
     routeCache.cachedAt = 0;
@@ -1868,7 +2127,6 @@ function setupMapControls() {
     showAlert('info', `GPS update interval set to ${mapState.updateFrequencyMs / 1000}s.`);
   });
 
-  // GPS simulation
   document.getElementById('simulate-gps-button').addEventListener('click', toggleGpsSimulation);
 }
 
@@ -1938,18 +2196,24 @@ window.addEventListener('load', async () => {
   // Background tracking: resume when tab becomes visible
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+      mapboxState.map?.resize();
       requestWakeLock();
       routeCache.cachedAt = 0;
       recalculateRouteData().catch(() => {});
       navigator.geolocation?.getCurrentPosition(handlePositionUpdate, handleGeoError, getGeolocationOptions());
     }
   });
+  window.addEventListener('resize', () => mapboxState.map?.resize());
 
   // Cleanup on unload
   window.addEventListener('beforeunload', () => {
     stopLocationTracking();
     if (gpsSimulationIntervalId !== null) window.clearInterval(gpsSimulationIntervalId);
     if (wakeLockSentinel && typeof wakeLockSentinel.release === 'function') wakeLockSentinel.release().catch(() => {});
+    if (mapboxState.map) {
+      mapboxState.map.remove();
+      mapboxState.map = null;
+    }
   });
 
   // Load data

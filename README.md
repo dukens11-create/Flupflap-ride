@@ -91,6 +91,19 @@ The `public/driver-dashboard.js` page reads realtime config from `window.DRIVE_R
 
 The dashboard syncs `drivers/<driverId>/rides`, `drivers/<driverId>/location`, and `drivers/<driverId>/earnings` with live listeners plus cached offline recovery.
 
+### Driver web dashboard Mapbox setup
+
+The driver dashboard now loads Mapbox from the hosted SDK and reads public map config from `/driver-dashboard-config.js`, which is backed by these server env vars:
+
+- `MAPBOX_PUBLIC_TOKEN` – required to render the live driver map
+- `MAPBOX_STYLE_URL` – optional primary style override (defaults to `mapbox://styles/mapbox/dark-v11`)
+- `MAPBOX_SATELLITE_STYLE_URL` – optional satellite style override (defaults to `mapbox://styles/mapbox/satellite-streets-v12`)
+
+For the other frontends, use the same public-token pattern:
+
+- `NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN` for Next.js web apps
+- `EXPO_PUBLIC_MAPBOX_PUBLIC_TOKEN` for Expo/mobile apps
+
 ## Backend quick start
 
 ```bash

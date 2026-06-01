@@ -57,5 +57,9 @@ export const env = {
   // App base URL for links in emails
   appBaseUrl: getString('APP_BASE_URL', 'https://app.drive.com'),
   // Sentry
-  sentryDsn: getString('SENTRY_DSN')
+  sentryDsn: getString('SENTRY_DSN'),
+  // Public map configuration
+  mapboxPublicToken: getString('MAPBOX_PUBLIC_TOKEN'),
+  mapboxStyle: getString('MAPBOX_STYLE_URL', 'mapbox://styles/mapbox/dark-v11'),
+  mapboxSatelliteStyle: getString('MAPBOX_SATELLITE_STYLE_URL', 'mapbox://styles/mapbox/satellite-streets-v12')
 };

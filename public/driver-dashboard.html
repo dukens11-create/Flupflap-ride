@@ -6,6 +6,7 @@
     <title>Drive Driver Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css">
     <style>
         :root {
             --bg: #071018;
@@ -345,122 +346,107 @@
             inset: 0;
             min-height: 280px;
             overflow: hidden;
+            background:
+                radial-gradient(circle at center, rgba(38, 208, 124, 0.08), transparent 42%),
+                linear-gradient(180deg, rgba(9, 16, 28, 0.82), rgba(9, 16, 28, 0.98));
         }
 
-        .map-shell.satellite-view {
-            filter: hue-rotate(120deg) saturate(0.8) brightness(0.72);
+        .map-canvas,
+        .mapboxgl-map,
+        .mapboxgl-canvas-container,
+        .mapboxgl-canvas {
+            width: 100%;
+            height: 100%;
         }
 
-        .map-shell::before,
+        .mapboxgl-map {
+            border-radius: inherit;
+        }
+
+        .map-shell.satellite-view .mapboxgl-canvas-container {
+            filter: saturate(0.92) brightness(0.86);
+        }
+
         .map-shell::after {
             content: "";
             position: absolute;
             inset: 0;
-        }
-
-        .map-shell::before {
-            background:
-                radial-gradient(circle at 20% 20%, rgba(27, 128, 255, 0.18), transparent 18%),
-                radial-gradient(circle at 75% 28%, rgba(38, 208, 124, 0.18), transparent 18%),
-                radial-gradient(circle at 60% 76%, rgba(248, 193, 93, 0.15), transparent 20%);
+            pointer-events: none;
         }
 
         .map-shell::after {
             background:
-                linear-gradient(120deg, transparent 48%, rgba(255, 255, 255, 0.05) 50%, transparent 52%) 0 0 / 220px 220px,
-                linear-gradient(90deg, transparent 28%, rgba(255, 255, 255, 0.04) 30%, transparent 32%) 0 0 / 180px 180px;
-            opacity: 0.7;
+                radial-gradient(circle at 20% 20%, rgba(27, 128, 255, 0.14), transparent 18%),
+                radial-gradient(circle at 75% 28%, rgba(38, 208, 124, 0.16), transparent 18%),
+                radial-gradient(circle at 60% 76%, rgba(248, 193, 93, 0.12), transparent 20%);
+            mix-blend-mode: screen;
+            opacity: 0.9;
         }
 
-        .map-grid {
+        .mapboxgl-ctrl-bottom-left,
+        .mapboxgl-ctrl-bottom-right {
+            display: none;
+        }
+
+        .driver-marker,
+        .pickup-marker,
+        .dropoff-marker,
+        .nearby-marker {
             position: absolute;
-            inset: 0;
-            background-image:
-                linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-            background-size: 42px 42px;
-            mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), transparent 96%);
         }
 
-        .map-point {
-            width: 14px;
-            height: 14px;
+        .driver-marker {
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
-            position: absolute;
-            transform: translate(-50%, -50%);
+            background: #26d07c;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 0 10px rgba(38, 208, 124, 0.16);
             animation: pulseMarker 2.6s infinite;
         }
 
-        .point-driver {
-            background: #26d07c;
-            box-shadow: 0 0 0 10px rgba(38, 208, 124, 0.16);
-        }
-
-        .point-ride {
-            background: #1b80ff;
-            box-shadow: 0 0 0 8px rgba(27, 128, 255, 0.15);
-        }
-
-        .map-dynamic,
-        .driver-arrow,
-        .accuracy-circle,
-        .point-pickup,
-        .point-dropoff,
-        .point-nearby,
-        .map-label {
+        .driver-marker::after {
+            content: "";
             position: absolute;
-        }
-
-        .driver-arrow {
+            left: 50%;
+            top: -12px;
             width: 0;
             height: 0;
             border-left: 6px solid transparent;
             border-right: 6px solid transparent;
             border-bottom: 12px solid #26d07c;
+            transform: translateX(-50%);
             transform-origin: 50% 100%;
-            z-index: 13;
         }
 
-        .accuracy-circle {
-            border-radius: 50%;
-            border: 2px dashed rgba(27, 128, 255, 0.35);
-            background: rgba(27, 128, 255, 0.08);
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            z-index: 5;
-        }
-
-        .point-pickup,
-        .point-dropoff {
+        .pickup-marker,
+        .dropoff-marker {
             width: 16px;
             height: 16px;
             border: 2px solid #fff;
             border-radius: 50% 50% 50% 0;
-            transform: translate(-50%, -100%) rotate(-45deg);
-            z-index: 10;
+            transform: rotate(-45deg);
         }
 
-        .point-pickup {
+        .pickup-marker {
             background: #ff6b6b;
             box-shadow: 0 2px 6px rgba(255, 107, 107, 0.55);
         }
 
-        .point-dropoff {
+        .dropoff-marker {
             background: #26d07c;
             box-shadow: 0 2px 6px rgba(38, 208, 124, 0.55);
         }
 
-        .point-nearby {
+        .nearby-marker {
             width: 11px;
             height: 11px;
             border-radius: 50%;
             background: #f8c15d;
             border: 2px solid #fff;
-            transform: translate(-50%, -50%);
-            z-index: 9;
         }
 
-        .map-label {
+        .map-label-marker {
             font-size: 10px;
             font-weight: 600;
             padding: 2px 6px;
@@ -469,8 +455,20 @@
             color: #f5f7fb;
             pointer-events: none;
             white-space: nowrap;
-            transform: translateX(-50%);
-            z-index: 14;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .mapbox-status {
+            position: absolute;
+            inset: auto 14px 14px;
+            padding: 10px 12px;
+            border-radius: 16px;
+            background: rgba(7, 16, 24, 0.86);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--muted);
+            font-size: 0.78rem;
+            z-index: 4;
+            backdrop-filter: blur(18px);
         }
 
         .map-controls {
@@ -864,8 +862,8 @@
 
             <div class="map-frame">
                 <div id="map-shell" class="map-shell">
-                    <div class="map-grid"></div>
-                    <svg id="map-route-layer" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;" aria-hidden="true"></svg>
+                    <div id="map-canvas" class="map-canvas" aria-label="Driver route map"></div>
+                    <div id="mapbox-status" class="mapbox-status">Mapbox map loading…</div>
                 </div>
             </div>
         </section>
@@ -1092,6 +1090,8 @@
         </div>
     </div>
 
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+    <script src="/driver-dashboard-config.js"></script>
     <script src="/driver-dashboard.js"></script>
 </body>
 </html>

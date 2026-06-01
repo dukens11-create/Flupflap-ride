@@ -8,6 +8,7 @@ import path from 'path';
 import { errorHandler } from './middleware';
 import { authRoutes, ridesRoutes, driversRoutes, paymentsRoutes, walletRoutes, kycRoutes, safetyRoutes, supportRoutes, merchantRoutes, marketplaceRoutes, adminRoutes, scheduledRoutes, subscriptionRoutes, loyaltyRoutes, corporateRoutes, carpoolRoutes, fraudRoutes, analyticsRoutes, twofaRoutes, chatRoutes, notificationsRoutes, mlRoutes, i18nRoutes, restaurantsRoutes } from './routes';
 import { registerTrackingSocket, registerChatSocket } from './websocket';
+import { env } from './config/env';
 
 export function createApp() {
   const app = express();
@@ -17,7 +18,11 @@ export function createApp() {
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
-        connectSrc: ["'self'", 'https://*.firebaseio.com', 'https://*.supabase.co', 'wss://*.supabase.co']
+        connectSrc: ["'self'", 'https://*.firebaseio.com', 'https://*.supabase.co', 'wss://*.supabase.co', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://*.tiles.mapbox.com'],
+        scriptSrc: ["'self'", 'https://api.mapbox.com'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://api.mapbox.com'],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https://api.mapbox.com', 'https://*.tiles.mapbox.com', 'https://events.mapbox.com'],
+        workerSrc: ["'self'", 'blob:']
       }
     }
   }));
@@ -28,6 +33,14 @@ export function createApp() {
   // Serve static files BEFORE routes
   const publicPath = path.join(process.cwd(), 'public');
   console.log('🔍 [STATIC] Serving static files from:', publicPath);
+  app.get('/driver-dashboard-config.js', (_, res) => {
+    res.type('application/javascript');
+    res.send(`window.DRIVE_MAPBOX_CONFIG = ${JSON.stringify({
+      accessToken: env.mapboxPublicToken || '',
+      styleUrl: env.mapboxStyle,
+      satelliteStyleUrl: env.mapboxSatelliteStyle
+    })};`);
+  });
   app.use(express.static(publicPath));
 
   app.get('/health', (_, res) => res.json({ ok: true, service: 'flupflap-ride-v7' }));

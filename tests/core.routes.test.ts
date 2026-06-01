@@ -148,15 +148,32 @@ test('GET / serves the professional dashboard login page', async () => {
       assert.match(csp, /https:\/\/\*\.firebaseio\.com/);
       assert.match(csp, /https:\/\/\*\.supabase\.co/);
       assert.match(csp, /wss:\/\/\*\.supabase\.co/);
+      assert.match(csp, /https:\/\/api\.mapbox\.com/);
+      assert.match(csp, /worker-src 'self' blob:/);
 
       const body = await response.text();
+      assert.match(body, /mapbox-gl-js\/v3\.6\.0\/mapbox-gl\.css/);
+      assert.match(body, /mapbox-gl-js\/v3\.6\.0\/mapbox-gl\.js/);
+      assert.match(body, /<script src="\/driver-dashboard-config\.js"><\/script>/);
       assert.match(body, /<script src="\/driver-dashboard\.js"><\/script>/);
-      ['toggle-availability-button', 'Driver mode', 'Professional control center', 'Ride History', 'Real-time Map', 'Performance Stats', 'Support \/ Help', 'Driver dashboard navigation', 'Follow Driver: ON', 'Simulate GPS', 'ETA Pickup', 'Selfie Photo', 'Verification Status'].forEach(label => {
+      ['toggle-availability-button', 'Driver mode', 'Professional control center', 'Ride History', 'Real-time Map', 'Performance Stats', 'Support \/ Help', 'Driver dashboard navigation', 'Follow Driver: ON', 'Simulate GPS', 'ETA Pickup', 'Selfie Photo', 'Verification Status', 'Mapbox map loading'].forEach(label => {
         assert.match(body, new RegExp(label));
       });
       assert.doesNotMatch(body, /\s(onclick|onsubmit)=/);
       assert.doesNotMatch(body, /<script>([\s\S]*?)<\/script>/i);
     });
+  });
+});
+
+test('GET /driver-dashboard-config.js exposes public map config', async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/driver-dashboard-config.js`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') ?? '', /javascript/);
+    const body = await response.text();
+    assert.match(body, /window\.DRIVE_MAPBOX_CONFIG = /);
+    assert.match(body, /"styleUrl":"mapbox:\/\/styles\/mapbox\/dark-v11"/);
+    assert.match(body, /"satelliteStyleUrl":"mapbox:\/\/styles\/mapbox\/satellite-streets-v12"/);
   });
 });
 
@@ -169,6 +186,8 @@ test('GET /driver-dashboard.js includes realtime and offline sync hooks', async 
     [
       'DRIVER_REALTIME_CONFIG_KEY',
       'hydrateDashboardFromCache',
+      'DRIVER_MAPBOX_CONFIG_KEY',
+      'ensureMapboxMap',
       'startRealtimeSync',
       'subscribeFirebaseStream',
       'flushOfflineLocationQueue',
