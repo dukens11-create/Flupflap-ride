@@ -15,11 +15,9 @@ const GPS_LOG_KEY = 'driverGpsLog';
 const LAST_KNOWN_LOCATION_KEY = 'driverLastKnownLocation';
 const MAX_GPS_LOG_ENTRIES = 200;
 const ROUTE_CACHE_TTL_MS = 30000;
-<<<<<<< HEAD
 const MAPBOX_TOKEN_STORAGE_KEY = 'drive.mapboxToken';
 const MAPBOX_STYLE_STREETS = 'mapbox://styles/mapbox/navigation-night-v1';
 const MAPBOX_STYLE_SATELLITE = 'mapbox://styles/mapbox/satellite-streets-v12';
-=======
 const RIDE_REQUEST_ALERT_WINDOW_MS = 18000;
 const RIDE_REQUEST_COUNTDOWN_TICK_MS = 1000;
 const RIDE_REQUEST_EXPIRING_THRESHOLD_MS = 7000;
@@ -27,7 +25,6 @@ const SWIPE_ACCEPT_THRESHOLD = 0.72;
 const SWIPE_ACCEPT_TRACK_PADDING = 14;
 const SWIPE_VERTICAL_THRESHOLD = 80;
 const SWIPE_HORIZONTAL_THRESHOLD = 60;
->>>>>>> origin/main
 
 const DEFAULT_FALLBACK_LAT = 37.7749;
 const DEFAULT_FALLBACK_LNG = -122.4194;
@@ -99,7 +96,6 @@ let mapState = {
   isDragging: false,
   dragStartX: 0,
   dragStartY: 0,
-<<<<<<< HEAD
   mapboxToken: '',
   mapboxInstance: null,
   mapboxReady: false,
@@ -108,9 +104,7 @@ let mapState = {
     driver: null,
     passengers: new Map(),
   },
-=======
   activePointerId: null
->>>>>>> origin/main
 };
 
 let sheetState = {
@@ -131,7 +125,6 @@ let gpsPollIntervalId = null;
 let gpsSimulationIntervalId = null;
 let gpsSimulationIndex = 0;
 let wakeLockSentinel = null;
-<<<<<<< HEAD
 let routeCache = {
   pickupEta: null,
   dropoffEta: null,
@@ -141,15 +134,12 @@ let routeCache = {
   dropoffGeometry: null,
   cachedAt: 0,
 };
-=======
-let routeCache = { pickupEta: null, dropoffEta: null, pickupDistKm: null, dropoffDistKm: null, cachedAt: 0 };
 let rideRequestCountdownIntervalId = null;
 let rideRequestFeedInitialized = false;
 let knownRideRequestIds = new Set();
 const rideRequestExpirations = new Map();
 const acceptingRideIds = new Set();
 let incomingRideAudioContext = null;
->>>>>>> origin/main
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 function showAlert(kind, message) {
@@ -2423,37 +2413,24 @@ function setupMapControls() {
 
   // Pan by dragging
   const shell = document.getElementById('map-shell');
-<<<<<<< HEAD
-  shell.addEventListener('mousedown', event => {
-    if (mapState.mapboxInstance) return;
-=======
   const supportsPointerCapture = typeof shell.setPointerCapture === 'function'
     && typeof shell.releasePointerCapture === 'function'
     && typeof shell.hasPointerCapture === 'function';
   shell.addEventListener('pointerdown', event => {
+    if (mapState.mapboxInstance) return;
     if (mapState.activePointerId !== null && mapState.activePointerId !== event.pointerId) return;
->>>>>>> origin/main
     mapState.isDragging = true;
     mapState.activePointerId = event.pointerId;
     mapState.dragStartX = event.clientX;
     mapState.dragStartY = event.clientY;
     shell.style.cursor = 'grabbing';
-<<<<<<< HEAD
-    mapState.followMode = false;
-    const btn = document.getElementById('follow-mode-button');
-    btn.innerHTML = '<i class="bi bi-geo-alt"></i> Follow Driver: OFF';
-    btn.classList.replace('btn-primary', 'btn-outline-primary');
-  });
-  window.addEventListener('mousemove', event => {
-    if (mapState.mapboxInstance) return;
-=======
     disableFollowMode();
     if (supportsPointerCapture) {
       shell.setPointerCapture(event.pointerId);
     }
   });
   window.addEventListener('pointermove', event => {
->>>>>>> origin/main
+    if (mapState.mapboxInstance) return;
     if (!mapState.isDragging) return;
     if (mapState.activePointerId !== event.pointerId) return;
     mapState.panX += event.clientX - mapState.dragStartX;
@@ -2462,16 +2439,11 @@ function setupMapControls() {
     mapState.dragStartY = event.clientY;
     queueMapRender();
   });
-<<<<<<< HEAD
-  window.addEventListener('mouseup', () => {
-    if (mapState.mapboxInstance) return;
-=======
   const stopDragging = event => {
     if (typeof event?.pointerId === 'number' && event.pointerId !== mapState.activePointerId) return;
     if (supportsPointerCapture && mapState.activePointerId !== null && shell.hasPointerCapture(mapState.activePointerId)) {
       shell.releasePointerCapture(mapState.activePointerId);
     }
->>>>>>> origin/main
     mapState.isDragging = false;
     mapState.activePointerId = null;
     shell.style.cursor = 'grab';
