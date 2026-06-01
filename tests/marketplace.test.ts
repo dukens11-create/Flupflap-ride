@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { store } from '../src/database/data.store';
+import * as admin from '../src/services/admin.service';
 import * as marketplace from '../src/services/marketplace.service';
 import * as rides from '../src/services/rides.service';
 import * as drivers from '../src/services/drivers.service';
@@ -29,13 +30,12 @@ async function setupVerifiedDriver(driverId: string) {
     ]
   });
   await kyc.webhook({ userId: driverId, status: 'verified' });
-  store.drivers.get(driverId)!.verificationReview = {
-    status: 'approved',
-    reviewedAt: new Date().toISOString(),
-    reviewedBy: 'admin_test',
-    checklist: ['License scan reviewed', 'Selfie verification matched']
-  };
-  drivers.syncDriverVerificationState(driverId);
+  const approval = await admin.approve_driver({
+    userId: driverId,
+    approved: true,
+    __actor: { id: 'admin_test', sub: 'admin_test', role: 'admin' }
+  });
+  assert.equal(approval.ok, true);
   await drivers.location({ userId: driverId, lat: 10, lng: 10 });
   await drivers.availability({ userId: driverId, status: 'online' });
 }

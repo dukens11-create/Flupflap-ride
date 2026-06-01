@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { store } from '../src/database/data.store';
+import * as admin from '../src/services/admin.service';
 import * as drivers from '../src/services/drivers.service';
 import * as kyc from '../src/services/kyc.service';
 import * as rides from '../src/services/rides.service';
@@ -10,6 +11,15 @@ function resetDriverData() {
   store.rides.clear();
   store.kycStatus.clear();
   store.walletTx.splice(0, store.walletTx.length);
+}
+
+async function approveDriver(userId: string) {
+  const result = await admin.approve_driver({
+    userId,
+    approved: true,
+    __actor: { id: 'admin_test', sub: 'admin_test', role: 'admin' }
+  });
+  assert.equal(result.ok, true);
 }
 
 test('driver onboarding progresses through documents and KYC before online', async () => {
@@ -37,15 +47,9 @@ test('driver onboarding progresses through documents and KYC before online', asy
   assert.equal(profile?.status, 'pending');
   assert.equal(profile?.verificationState, 'review_pending');
 
-  profile!.verificationReview = {
-    status: 'approved',
-    reviewedAt: new Date().toISOString(),
-    reviewedBy: 'admin_test',
-    checklist: ['License scan reviewed', 'Selfie verification matched']
-  };
-  const approved = drivers.syncDriverVerificationState('driver_onboarding');
+  await approveDriver('driver_onboarding');
   profile = store.drivers.get('driver_onboarding');
-  assert.equal(approved?.userId, 'driver_onboarding');
+  assert.equal(profile?.userId, 'driver_onboarding');
   assert.equal(profile?.status, 'approved');
   assert.equal(profile?.verificationState, 'verified');
 
@@ -66,8 +70,7 @@ test('ride request auto-assigns an eligible online driver and releases on comple
     ]
   });
   await kyc.webhook({ userId: 'driver_dispatch', status: 'verified' });
-  store.drivers.get('driver_dispatch')!.verificationReview = { status: 'approved', reviewedAt: new Date().toISOString(), reviewedBy: 'admin_test' };
-  drivers.syncDriverVerificationState('driver_dispatch');
+  await approveDriver('driver_dispatch');
   await drivers.location({ userId: 'driver_dispatch', lat: 10, lng: 10 });
   await drivers.availability({ userId: 'driver_dispatch', status: 'online' });
 
@@ -107,8 +110,7 @@ test('driver can send trip chat and rate passenger after completion', async () =
     ]
   });
   await kyc.webhook({ userId: 'driver_feedback', status: 'verified' });
-  store.drivers.get('driver_feedback')!.verificationReview = { status: 'approved', reviewedAt: new Date().toISOString(), reviewedBy: 'admin_test' };
-  drivers.syncDriverVerificationState('driver_feedback');
+  await approveDriver('driver_feedback');
   await drivers.location({ userId: 'driver_feedback', lat: 9, lng: 9 });
   await drivers.availability({ userId: 'driver_feedback', status: 'online' });
 

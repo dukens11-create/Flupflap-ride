@@ -334,18 +334,13 @@ export function AdminSectionPage({ section }: { section: SectionKey }) {
   const exportJobs = overview?.exportJobs || [];
   const importJobs = overview?.importJobs || [];
   const bulkJobs = overview?.bulkJobs || [];
-  const verificationQueue = drivers.filter(driver => driver.verificationState === 'review_pending' || driver.status === 'pending');
+  const verificationQueue = drivers.filter(driver => driver.verificationState === 'review_pending');
 
   function submitDriverReview(driver: DriverSummary, approved: boolean) {
-    const checklist = [
-      driver.verificationDocuments?.some(document => document.type === 'Driver License') ? 'License scan reviewed' : '',
-      driver.selfieVerification?.status ? `Selfie status: ${driver.selfieVerification.status}` : '',
-      driver.verificationDocuments?.some(document => document.ocrText) ? 'OCR text extracted' : ''
-    ].filter(Boolean);
     const notes = approved
       ? 'Approved after reviewing uploaded driver documents, OCR output, and selfie verification.'
       : 'Rejected after document review. Request resubmission of the verification package.';
-    void approveDriver(driver.userId, approved, notes, checklist);
+    void approveDriver(driver.userId, approved, notes);
   }
 
   if (!overview && loading) {

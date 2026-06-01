@@ -2,6 +2,7 @@ const API_BASE_URL = '';
 const REJECTED_RIDES_KEY = 'driverRejectedRideIds';
 const DRIVER_DOCS_KEY = 'driverDashboardDocs';
 const DRIVER_SUPPORT_KEY = 'driverDashboardSupportLog';
+const MAX_VERIFICATION_DOCUMENTS = 15;
 
 const MOCK_COMPLETED_RIDES = [
   { id: 'ride_hist_101', pickupLat: 37.775, pickupLng: -122.418, dropoffLat: 37.789, dropoffLng: -122.401, fareEstimate: 24.5, minutes: 21, passengerRating: 4.9, completedAt: '2026-05-31T10:12:00.000Z' },
@@ -535,7 +536,7 @@ async function handleDocumentSubmit(event) {
       : undefined,
     selfieMatchScore: undefined
   };
-  const nextDocs = [nextDoc, ...docs.filter(doc => !(doc.type === type && doc.fileName === fileName))].slice(0, 15);
+  const nextDocs = [nextDoc, ...docs.filter(doc => !(doc.type === type && doc.fileName === fileName))].slice(0, MAX_VERIFICATION_DOCUMENTS);
   setStoredList(DRIVER_DOCS_KEY, nextDocs);
 
   try {

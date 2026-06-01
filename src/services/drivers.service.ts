@@ -95,7 +95,9 @@ function buildLicenseOcrText(userId: string, document: { expiryDate?: string; do
 
 function scoreSelfieVerification(score: unknown) {
   const numeric = Number(score);
-  if (!Number.isFinite(numeric) || numeric <= 0) return { score: 0, status: 'pending_review' as const };
+  // Treat 0.75+ as a strong automated match, 0.5-0.74 as needing manual review,
+  // and anything lower as a failed comparison that should block approval.
+  if (!Number.isFinite(numeric)) return { score: 0, status: 'pending_review' as const };
   if (numeric >= 0.75) return { score: numeric, status: 'matched' as const };
   if (numeric >= 0.5) return { score: numeric, status: 'pending_review' as const };
   return { score: Math.max(0, numeric), status: 'failed' as const };
@@ -159,8 +161,8 @@ function ensureVerificationData(profile: DriverProfile) {
   const selfieDocument = profile.verificationDocuments.find(document => document.type === SELFIE_DOCUMENT_TYPE);
   if (selfieDocument && profile.selfieVerification.status === 'missing') {
     profile.selfieVerification = {
-      status: 'matched',
-      score: 0.86,
+      status: 'pending_review',
+      score: 0,
       fileName: selfieDocument.fileName,
       checkedAt: selfieDocument.uploadedAt
     };
