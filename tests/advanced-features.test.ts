@@ -395,6 +395,7 @@ test('notifications: preferences, device tokens, push/email/sms, and logs work',
     assert.equal(push.body.delivered, 1);
 
     const quietHours = await post(baseUrl, '/api/notifications/preferences', {
+      // When start equals end (00:00 === 00:00), isQuietHours treats it as all-day quiet mode for deterministic queuing assertions.
       quietHours: { enabled: true, start: '00:00', end: '00:00' },
     }, rider.token);
     assert.equal(quietHours.status, 200);

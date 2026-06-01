@@ -15,6 +15,7 @@ import {
 } from '../database/data.store';
 import { markDriverAssigned, releaseDriverFromRide } from './drivers.service';
 import { sendRealtimePushEvent } from './notifications.service';
+import { logger } from '../utils/logger';
 
 const BASE_FARE = 2.5;
 const DISTANCE_RATE = 1.9;
@@ -25,7 +26,9 @@ async function pushRideNotification(userId: string | undefined, category: string
   if (!userId) return;
   try {
     await sendRealtimePushEvent({ userId, category, title, body, template });
-  } catch {}
+  } catch (error: any) {
+    logger.warn('Ride notification push failed', { userId, category, template, error: error?.message });
+  }
 }
 
 function getRide(id: string) {

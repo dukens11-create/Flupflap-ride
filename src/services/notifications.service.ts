@@ -71,12 +71,17 @@ function isQuietHours(preferences: NotificationPreference, now = new Date()) {
     const minute = Number(parts.find(part => part.type === 'minute')?.value || 0);
     const current = (hour * 60) + minute;
 
+    // When start equals end (e.g. 00:00 === 00:00), it is treated as an all-day quiet-hours window.
     if (start === end) return true;
     if (start < end) return current >= start && current < end;
     return current >= start || current < end;
   } catch {
     return false;
   }
+}
+
+function isCategoryAllowed(preferences: NotificationPreference, category: PushCategory) {
+  return preferences.categories.length === 0 || preferences.categories.includes(category);
 }
 
 function getNotificationPreferencesForUser(userId: string): NotificationPreference {
@@ -297,7 +302,8 @@ async function deliverPushToUser(
 ) {
   const preferences = getNotificationPreferencesForUser(userId);
   if (!preferences.pushOptIn) return { ok: false, error: 'push disabled for user', delivered: 0, queued: 0 };
-  if (preferences.categories.length > 0 && !preferences.categories.includes(category)) {
+  const categoryAllowed = isCategoryAllowed(preferences, category);
+  if (!categoryAllowed) {
     return { ok: false, error: `category ${category} disabled for user`, delivered: 0, queued: 0 };
   }
 
@@ -406,7 +412,8 @@ export async function sendPush(body: any) {
     .filter(target => {
       if (!target.userId) return true;
       const preferences = getNotificationPreferencesForUser(target.userId);
-      return preferences.pushOptIn && (preferences.categories.length === 0 || preferences.categories.includes(category)) && !isQuietHours(preferences);
+      const categoryAllowed = isCategoryAllowed(preferences, category);
+      return preferences.pushOptIn && categoryAllowed && !isQuietHours(preferences);
     });
   for (const target of uniqueTargets) {
     await recordAndSend('push', target.token, template, 'fcm', () => sendViaFCM(target.token, title, messageBody), target.userId);
