@@ -34,6 +34,8 @@ const MAX_ACCEPTABLE_ACCURACY_M = 150;
 const MAX_REASONABLE_SPEED_KMH = 160;
 const STOPPED_SPEED_THRESHOLD_KMH = 3;
 const ACCELERATION_THRESHOLD_KMH = 8;
+const MIN_ANIMATION_SPEED_KMH = 12;
+const MIN_ANIMATION_DISTANCE_KM = 0.00005;
 const MARKER_ANIMATION_MIN_MS = 900;
 const MARKER_ANIMATION_MAX_MS = 4800;
 const TRAIL_HISTORY_LIMIT = 32;
@@ -814,7 +816,7 @@ function getMapDisplayPosition() {
 }
 
 function calculateAnimationDuration(distanceKm, speedKmh) {
-  const speed = Math.max(speedKmh || 0, 12);
+  const speed = Math.max(speedKmh || 0, MIN_ANIMATION_SPEED_KMH);
   const estimatedMs = (distanceKm / speed) * 60 * 60 * 1000;
   const updateFrequencyMs = Number.isFinite(mapState.updateFrequencyMs) && mapState.updateFrequencyMs > 0
     ? mapState.updateFrequencyMs
@@ -909,7 +911,7 @@ function animateDriverMarkerTo(nextPosition) {
   mapState.motion.queuedPosition = null;
 
   const distanceKm = calculateDistance(currentDisplay.lat, currentDisplay.lng, nextPosition.lat, nextPosition.lng);
-  if (!Number.isFinite(distanceKm) || distanceKm <= 0.00005) {
+  if (!Number.isFinite(distanceKm) || distanceKm <= MIN_ANIMATION_DISTANCE_KM) {
     applyAnimatedPosition(nextPosition);
     updateMotionTrail(nextPosition);
     return;
@@ -969,7 +971,7 @@ function updateMotionStats(position, previousPosition, distanceKm, elapsedMs) {
 
   const previousSpeed = previousPosition?.speed ?? 0;
   const speedDelta = (position.speed || 0) - previousSpeed;
-  if ((position.speed || 0) < STOPPED_SPEED_THRESHOLD_KMH || (Number.isFinite(elapsedMs) && elapsedMs > 0 && distanceKm < MIN_MOVEMENT_DISTANCE_KM)) {
+  if (isVehicleStopped(position, distanceKm, elapsedMs)) {
     mapState.motion.status = 'Stopped';
   } else if (speedDelta >= ACCELERATION_THRESHOLD_KMH) {
     mapState.motion.status = 'Accelerating';
@@ -978,6 +980,11 @@ function updateMotionStats(position, previousPosition, distanceKm, elapsedMs) {
   } else {
     mapState.motion.status = 'Moving';
   }
+}
+
+function isVehicleStopped(position, distanceKm, elapsedMs) {
+  return (position?.speed || 0) < STOPPED_SPEED_THRESHOLD_KMH
+    || (Number.isFinite(elapsedMs) && elapsedMs > 0 && distanceKm < MIN_MOVEMENT_DISTANCE_KM);
 }
 
 function isLikelyGpsJump(previousPosition, nextPosition, distanceKm, elapsedMs) {
