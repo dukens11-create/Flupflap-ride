@@ -150,8 +150,9 @@ test('GET / serves the professional dashboard login page', async () => {
       assert.match(csp, /wss:\/\/\*\.supabase\.co/);
 
       const body = await response.text();
+      assert.match(body, /<script src="\/socket\.io\/socket\.io\.js"><\/script>/);
       assert.match(body, /<script src="\/driver-dashboard\.js"><\/script>/);
-      ['toggle-availability-button', 'Driver mode', 'Professional control center', 'Ride History', 'Real-time Map', 'Performance Stats', 'Support \/ Help', 'Driver dashboard navigation', 'Follow Driver: ON', 'Simulate GPS', 'ETA Pickup', 'Selfie Photo', 'Verification Status', 'Arrived at Pickup', 'Start Trip', 'End Trip', 'Rider Rating'].forEach(label => {
+      ['toggle-availability-button', 'Driver mode', 'Professional control center', 'Ride History', 'Real-time Map', 'Performance Stats', 'Support \/ Help', 'Driver dashboard navigation', 'Follow Driver: ON', 'Simulate GPS', 'ETA Pickup', 'Selfie Photo', 'Verification Status', 'Arrived at Pickup', 'Start Trip', 'End Trip', 'Rider Rating', 'sheet-handle', 'bottom-sheet'].forEach(label => {
         assert.match(body, new RegExp(label));
       });
       assert.doesNotMatch(body, /\s(onclick|onsubmit)=/);
@@ -170,15 +171,35 @@ test('GET /driver-dashboard.js includes realtime and offline sync hooks', async 
       'DRIVER_REALTIME_CONFIG_KEY',
       'hydrateDashboardFromCache',
       'startRealtimeSync',
+      'startSocketRealtimeSync',
+      'dispatch:subscribe',
+      'dispatch:rides',
       'subscribeFirebaseStream',
       'flushOfflineLocationQueue',
       'handleArrivedAtPickup',
       'handleStartTrip',
       'handleEndTrip',
-      'handleSubmitRiderRating'
+      'handleSubmitRiderRating',
+      'setupBottomSheetControls',
+      'setupPaneSwipeNavigation',
+      'pointerdown',
+      'PROFILE_LOAD_MAX_RETRIES',
+      'validateAuthSession',
+      'buildFallbackDemoProfile'
     ].forEach(token => {
       assert.match(body, new RegExp(token));
     });
+  });
+});
+
+test('GET /socket.io/socket.io.js serves the realtime websocket client bundle', async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/socket.io/socket.io.js`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') ?? '', /javascript/);
+    const body = await response.text();
+    assert.match(body, /Socket/);
+    assert.match(body, /io/);
   });
 });
 
