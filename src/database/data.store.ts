@@ -147,6 +147,7 @@ export type DriverVerificationReview = {
 
 export type DriverProfile = {
   userId: string;
+  currentTripId?: string;
   status: 'pending' | 'approved' | 'rejected';
   verificationState: 'documents_pending' | 'kyc_pending' | 'review_pending' | 'verified' | 'rejected';
   availabilityStatus: 'offline' | 'online' | 'assigned' | 'unavailable';

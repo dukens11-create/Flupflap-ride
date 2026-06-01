@@ -343,6 +343,7 @@ export async function request(body: any, _params?: any, _query?: any) {
     const assigned = markDriverAssigned(dispatch.selected.driverId);
     if (assigned.ok) {
       ride.driverId = assigned.profile.userId;
+      assigned.profile.currentTripId = ride.id;
       ride.status = 'accepted';
       rideRequest.acceptedDriverId = assigned.profile.userId;
       rideRequest.status = 'accepted';
@@ -496,6 +497,7 @@ export async function accept(body: any, params?: any, _query?: any) {
   if (!assigned.ok) return { module: 'rides', action: 'accept', error: assigned.error };
   ride.driverId = driverId;
   ride.status = 'accepted';
+  assigned.profile.currentTripId = ride.id;
   if (request) {
     request.acceptedDriverId = driverId;
     syncRideRequestState(request, 'accepted');
@@ -566,6 +568,8 @@ export async function complete(body: any, _params?: any, _query?: any) {
     'trip_update_completed'
   );
   if (ride.driverId) releaseDriverFromRide(ride.driverId);
+  const driverProfile = ride.driverId ? store.drivers.get(ride.driverId) : null;
+  if (driverProfile?.currentTripId === ride.id) driverProfile.currentTripId = undefined;
 
   const grossCents = Math.round(ride.fareEstimate * 100);
   const discountCents = ride.discountCents || 0;
@@ -627,6 +631,8 @@ export async function noShow(body: any, _params?: any, _query?: any) {
   if (request) syncRideRequestState(request, 'canceled');
   appendRideEvent(ride, 'rider_no_show', 'Rider no-show', 'Driver waited at pickup but rider did not appear.', 'driver', driverId, now);
   if (ride.driverId) releaseDriverFromRide(ride.driverId);
+  const driverProfile = store.drivers.get(driverId);
+  if (driverProfile?.currentTripId === ride.id) driverProfile.currentTripId = undefined;
   const riderProfile = store.riders.get(ride.riderId);
   if (riderProfile?.currentTripId === ride.id) riderProfile.currentTripId = undefined;
   publishRideRealtimeUpdate(ride, 'canceled');
@@ -665,6 +671,8 @@ export async function driverCancel(body: any, _params?: any, _query?: any) {
   }
   appendRideEvent(ride, 'ride_canceled', 'Ride canceled by driver', `Driver canceled the ride: ${reason}.`, 'driver', driverId, now);
   releaseDriverFromRide(driverId);
+  const driverProfile = store.drivers.get(driverId);
+  if (driverProfile?.currentTripId === ride.id) driverProfile.currentTripId = undefined;
   const riderProfile = store.riders.get(ride.riderId);
   if (riderProfile?.currentTripId === ride.id) riderProfile.currentTripId = undefined;
   publishRideRealtimeUpdate(ride, 'canceled');
@@ -706,6 +714,8 @@ export async function cancel(body: any, _params?: any, _query?: any) {
     'trip_update_canceled'
   );
   if (ride.driverId) releaseDriverFromRide(ride.driverId);
+  const driverProfile = ride.driverId ? store.drivers.get(ride.driverId) : null;
+  if (driverProfile?.currentTripId === ride.id) driverProfile.currentTripId = undefined;
   const riderProfile = store.riders.get(ride.riderId);
   if (riderProfile?.currentTripId === ride.id) riderProfile.currentTripId = undefined;
   publishRideRealtimeUpdate(ride, 'canceled');

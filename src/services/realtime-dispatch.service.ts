@@ -68,6 +68,9 @@ function publishDispatchEvent(type: string, payload: Record<string, unknown>, ro
     payload
   };
   store.dispatchEvents.push(event);
+  if (store.dispatchEvents.length > 1_000) {
+    store.dispatchEvents.splice(0, store.dispatchEvents.length - 1_000);
+  }
   realtimeServer?.emit('dispatch:event', event);
   roomIds.forEach(roomId => emitToRoom(roomId, 'dispatch:event', event));
   return event;
@@ -160,7 +163,7 @@ export function getRealtimeDispatchSnapshot() {
       acceptanceRate: profile.acceptanceRate,
       cancellationRate: profile.cancellationRate,
       earningsCents: profile.earningsCents,
-      currentTripId: Array.from(store.rides.values()).find(ride => ride.driverId === profile.userId && ['accepted', 'arrived_at_pickup', 'started'].includes(ride.status))?.id,
+      currentTripId: profile.currentTripId,
       location: getDriverRealtimeLocation(profile.userId)
     })),
     riders: Array.from(store.riders.keys())

@@ -393,6 +393,9 @@ export async function location(body: any, _params?: any, _query?: any) {
     speed: Number.isFinite(speed) ? speed : undefined,
     timestamp: updatedAt
   });
+  if (store.locationHistory.length > 5_000) {
+    store.locationHistory.splice(0, store.locationHistory.length - 5_000);
+  }
   markStoreDirty();
   publishDriverRealtimeLocation(userId);
   return { module: 'drivers', action: 'location', ok: true, profile };
@@ -419,9 +422,16 @@ export async function currentTrip(body: any, _params?: any, _query?: any) {
   const userId = body?.actor?.id || body?.userId;
   const profile = getProfile(userId);
   if (!profile) return { module: 'drivers', action: 'current-trip', error: 'driver not found' };
+  if (profile.currentTripId) {
+    const activeRide = store.rides.get(profile.currentTripId);
+    if (activeRide && ['accepted', 'arrived_at_pickup', 'started'].includes(activeRide.status)) {
+      return { module: 'drivers', action: 'current-trip', ok: true, ride: activeRide };
+    }
+  }
   const ride = Array.from(store.rides.values())
     .filter(candidate => candidate.driverId === userId && ['accepted', 'arrived_at_pickup', 'started'].includes(candidate.status))
     .sort((left, right) => (right.updatedAt > left.updatedAt ? 1 : -1))[0] || null;
+  if (ride) profile.currentTripId = ride.id;
   return { module: 'drivers', action: 'current-trip', ok: true, ride };
 }
 
