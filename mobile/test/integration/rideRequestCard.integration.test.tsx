@@ -1,6 +1,5 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
-import { RideRequestCard } from '../../src/components/drive/RideRequestCard';
 import { useAccessibilitySettings } from '../../src/context/AccessibilityContext';
 import { useDriveRealtime } from '../../src/context/DriveRealtimeContext';
 import { useLocale } from '../../src/context/LocaleContext';
@@ -23,6 +22,8 @@ jest.mock('../../src/services/api/ridesApi', () => ({
     ratePassenger: jest.fn(),
   },
 }));
+
+import { RideRequestCard } from '../../src/components/drive/RideRequestCard';
 
 const mockUseDriveRealtime = useDriveRealtime as jest.MockedFunction<typeof useDriveRealtime>;
 const mockUseAccessibilitySettings = useAccessibilitySettings as jest.MockedFunction<typeof useAccessibilitySettings>;
@@ -105,6 +106,10 @@ describe('RideRequestCard integration', () => {
     });
 
     const screen = render(<RideRequestCard />);
+    expect(screen.getByText('Incoming ride request')).toBeTruthy();
+    expect(screen.getByText('Sound alert active')).toBeTruthy();
+    expect(screen.getByText('Estimated earnings')).toBeTruthy();
+    expect(screen.getByText(/Swipe to accept/i)).toBeTruthy();
     fireEvent.press(screen.getByText('Accept'));
     expect(acceptRequest).toHaveBeenCalledTimes(1);
   });
@@ -205,7 +210,7 @@ describe('RideRequestCard integration', () => {
     });
 
     const screen = render(<RideRequestCard />);
-    fireEvent.press(screen.getByText('Decline'));
+    fireEvent.press(screen.getByText('Reject'));
     expect(declineRequest).toHaveBeenCalledTimes(1);
   });
 
@@ -256,7 +261,7 @@ describe('RideRequestCard integration', () => {
 
     const screen = render(<RideRequestCard />);
     fireEvent.press(screen.getByText('Submit rating'));
-    expect(mockRatePassenger).toHaveBeenCalledWith('trip-1', 5, '');
+    await waitFor(() => expect(mockRatePassenger).toHaveBeenCalledWith('trip-1', 5, ''));
   });
 
   test('shows passenger rating error when submission fails', async () => {
