@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { markStoreDirty, store, timestamp, type DriverProfile, type DriverVerificationDocument } from '../database/data.store';
 
 type DriverDocumentInput = string | {
@@ -94,7 +95,7 @@ function buildLicenseOcrText(userId: string, document: { expiryDate?: string; do
 
 function scoreSelfieVerification(score: unknown) {
   const numeric = Number(score);
-  if (!Number.isFinite(numeric) || numeric <= 0) return { score: 0.86, status: 'matched' as const };
+  if (!Number.isFinite(numeric) || numeric <= 0) return { score: 0, status: 'pending_review' as const };
   if (numeric >= 0.75) return { score: numeric, status: 'matched' as const };
   if (numeric >= 0.5) return { score: numeric, status: 'pending_review' as const };
   return { score: Math.max(0, numeric), status: 'failed' as const };
@@ -422,7 +423,7 @@ export async function documents(body: any, _params?: any, _query?: any) {
     };
 
     const verificationDocument: DriverVerificationDocument = {
-      id: parsed.id || `${Date.now()}_${index}_${Math.random().toString(16).slice(2)}`,
+      id: parsed.id || randomUUID(),
       type: parsed.type,
       fileName: parsed.fileName,
       expiryDate: parsed.expiryDate,

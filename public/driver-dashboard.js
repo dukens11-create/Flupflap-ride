@@ -533,7 +533,7 @@ async function handleDocumentSubmit(event) {
     ocrText: type === 'Driver License'
       ? ['DRIVER LICENSE', `License Number: ${documentNumber || 'Pending OCR'}`, `Expiry Date: ${expiryDate || 'Not provided'}`].join('\n')
       : undefined,
-    selfieMatchScore: type === 'Selfie Photo' ? 0.86 : undefined
+    selfieMatchScore: undefined
   };
   const nextDocs = [nextDoc, ...docs.filter(doc => !(doc.type === type && doc.fileName === fileName))].slice(0, 15);
   setStoredList(DRIVER_DOCS_KEY, nextDocs);

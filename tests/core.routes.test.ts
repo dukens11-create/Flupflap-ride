@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../src/app';
+import { env } from '../src/config/env';
 
 async function withServer(run: (baseUrl: string) => Promise<void>) {
   const { httpServer } = createApp();
@@ -54,7 +55,7 @@ async function signup(baseUrl: string, role: 'rider' | 'driver' | 'merchant' = '
 async function loginAdmin(baseUrl: string) {
   const response = await postJson(baseUrl, '/api/auth/login', {
     email: 'admin@drive.com',
-    password: 'change_me_admin_password'
+    password: env.adminSeedPassword
   });
   assert.equal(response.status, 200);
   const body = await response.json();

@@ -538,7 +538,12 @@ export function AdminSectionPage({ section }: { section: SectionKey }) {
                       </div>
                       <div className="mt-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">
                         <p className="font-medium text-[var(--foreground)]">Review summary</p>
-                        <p className="mt-2">Selfie match score: {driver.selfieVerification ? `${Math.round((driver.selfieVerification.score || 0) * 100)}%` : 'Not available'}</p>
+                        <p
+                          className="mt-2"
+                          aria-label={driver.selfieVerification ? `Selfie verification confidence score ${Math.round((driver.selfieVerification.score || 0) * 100)} percent` : 'Selfie verification confidence score not available'}
+                        >
+                          Selfie match score: {driver.selfieVerification ? `${Math.round((driver.selfieVerification.score || 0) * 100)}%` : 'Not available'}
+                        </p>
                         <p className="mt-1">Admin review: {driver.verificationReview?.status || 'pending_review'}</p>
                         {driver.verificationReview?.notes ? <p className="mt-1">{driver.verificationReview.notes}</p> : null}
                         {driver.verificationReview?.checklist?.length ? (

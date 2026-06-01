@@ -21,8 +21,21 @@ function resetStores() {
 
 async function setupVerifiedDriver(driverId: string) {
   await drivers.apply({ userId: driverId });
-  await drivers.documents({ userId: driverId, documents: ['license', 'insurance'] });
+  await drivers.documents({
+    userId: driverId,
+    documents: [
+      { type: 'Driver License', fileName: `${driverId}-license.jpg`, expiryDate: '2030-08-31' },
+      { type: 'Selfie Photo', fileName: `${driverId}-selfie.jpg`, selfieMatchScore: 0.9 }
+    ]
+  });
   await kyc.webhook({ userId: driverId, status: 'verified' });
+  store.drivers.get(driverId)!.verificationReview = {
+    status: 'approved',
+    reviewedAt: new Date().toISOString(),
+    reviewedBy: 'admin_test',
+    checklist: ['License scan reviewed', 'Selfie verification matched']
+  };
+  drivers.syncDriverVerificationState(driverId);
   await drivers.location({ userId: driverId, lat: 10, lng: 10 });
   await drivers.availability({ userId: driverId, status: 'online' });
 }
